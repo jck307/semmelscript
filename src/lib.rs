@@ -6,6 +6,7 @@ pub mod parser;
 pub mod syntax;
 pub mod stdlib;
 pub mod runtime;
+pub mod prelude;
 
 use {
     buffer::Buffer,
@@ -14,7 +15,9 @@ use {
     runtime::*,
 };
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+pub use runtime::call_function;
+
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 pub fn setup() -> (Runtime, Scope) {
     let mut runtime = Runtime::new();

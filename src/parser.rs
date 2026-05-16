@@ -156,7 +156,7 @@ impl Parser {
 
     fn read_let(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&Token::Operator(Operator::SetValue))?;
+        self.tokens.expect(&Token::Operator(Operator::Assign))?;
         let expr = self.read_expression()?;
         self.expect_semi()?;
         Ok(Node::Statement(Statement::DefineVariable(

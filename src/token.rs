@@ -96,8 +96,14 @@ string_enum! { Operator,
     // ranges
     RangeExcl = "..",
 
-    // misc
-    SetValue = "=",
+    // assign
+    Assign = "=",
+    AddAssign = "+=",
+    SubAssign = "-=",
+    MulAssign = "*=",
+    DivAssign = "/=",
+    PowAssign = "^⁼",
+    ModAssign = "%=",
 }
 
 use Operator::*;
@@ -110,7 +116,7 @@ pub static OPERATOR_ORDER: &[&[Operator]] = &[
     &[Equal, Inequal, Less, LessEqual, Greater, GreaterEqual],
     &[And],
     &[Or],
-    &[SetValue],
+    &[Assign, AddAssign, SubAssign, MulAssign, DivAssign, PowAssign, ModAssign],
 ];
 
 pub static BINARY_OPERATORS: &[Operator] = &[
@@ -129,5 +135,11 @@ pub static BINARY_OPERATORS: &[Operator] = &[
     And,
     Or,
     RangeExcl,
-    SetValue,
+    Assign,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    PowAssign,
+    ModAssign,
 ];

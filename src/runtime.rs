@@ -11,7 +11,7 @@ use quick_error::quick_error;
 quick_error! {
     #[derive(Debug)]
     pub enum RuntimeError {
-        ExpectedType(typ: Type) {}
+        ExpectedType(typ: Type, found: Type) {}
         ExpectedArgs(len: usize) {}
         NameError(name: Box<str>) {}
     }
@@ -23,9 +23,10 @@ use RuntimeError::*;
 macro_rules! expect_type {
     ($value:expr, $type:ident) => {{
         use crate::runtime::{Object, Type, RuntimeError};
-        match $value {
+        let value = $value;
+        match value {
             Object::$type(value) => value,
-            _ => { return Err( RuntimeError::ExpectedType(Type::$type).into()); }
+            _ => { return Err( RuntimeError::ExpectedType(Type::$type, value.get_type()).into()); }
         }}
     }
 }
@@ -36,10 +37,12 @@ pub struct Runtime {
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    pub objects: Vec<Object>,
+    pub objects: HashMap<usize, Object>,
     pub names: HashMap<Box<str>, usize>,
     pub parent: Option<*mut Scope>,
 }
+
+unsafe impl Send for Scope {}
 
 #[derive(Debug, Clone)]
 pub enum Function {
@@ -49,9 +52,10 @@ pub enum Function {
 
 #[derive(Debug)]
 pub enum Type {
-    // Null,
+    Null,
     String,
     Integer,
+    Float,
     Boolean,
     Function,
     List,
@@ -62,12 +66,28 @@ pub enum Object {
     Null,
     String(String),
     Integer(IntegerType),
+    Float(f32),
     Boolean(bool),
     Function {
         func: Box<Function>,
         args: Vec<Box<str>>,
     },
     List(Vec<Object>),
+}
+
+impl Object {
+    pub fn get_type(&self) -> Type {
+        use Type::*;
+        match self {
+            Self::Null => Null,
+            Self::String(_) => String,
+            Self::Integer(_) => Integer,
+            Self::Float(_) => Float,
+            Self::Boolean(_) => Boolean,
+            Self::Function { .. } => Function,
+            Self::List(_) => List,
+        }
+    }
 }
 
 impl Runtime {
@@ -82,13 +102,13 @@ impl Scope {
     pub fn new(parent: Option<*mut Scope>) -> Self {
         Self {
             names: HashMap::new(),
-            objects: Vec::new(),
+            objects: HashMap::new(),
             parent,
         }
     }
 
     fn add_object(&mut self, object: Object) -> usize {
-        self.objects.push(object);
+        self.objects.insert(self.objects.len(), object);
         self.objects.len() - 1
     }
 
@@ -116,7 +136,7 @@ impl Scope {
 
     pub fn get(&mut self, runtime: &Runtime, name: &str) -> Result<Object> {
         if let Some(id) = self.names.get(name) {
-            Ok(self.objects[*id].clone())
+            Ok(self.objects[id].clone())
         } else {
             if let Some(parent) = self.parent {
                 unsafe {
@@ -125,7 +145,7 @@ impl Scope {
             } else {
                 match runtime.globals.names.get(name) {
                     Some(id) => {
-                        Ok(runtime.globals.objects[*id].clone())
+                        Ok(runtime.globals.objects[id].clone())
                     }
                     None => Err(NameError(name.into()).into())
                 }
@@ -144,6 +164,31 @@ impl Scope {
     }
 }
 
+pub fn call_function(runtime: &mut Runtime, scope: &mut Scope, object: Object, mut args: Vec<Object>) -> Result<Object> {
+    match object {
+        Object::Function { func, args: arg_names } => {
+            if args.len() != arg_names.len() {
+                return Err(ExpectedArgs(arg_names.len()).into());
+            }
+
+            let mut func_scope = Scope::new(Some(scope.root()));
+            for arg_name in arg_names.iter() {
+                func_scope.define(arg_name, args.remove(0));
+            }
+
+            match *func {
+                Function::Pointer(ptr) => {
+                    ptr(runtime, &mut func_scope)
+                }
+                Function::Block(block) => {
+                    block.eval(runtime, &mut func_scope)
+                }
+            }
+        }
+        _ => Err(ExpectedType(Type::Function, object.get_type()).into())
+    }
+}
+
 pub trait Evaluate {
     // evaluates the value of a node
     fn eval(&self, _runtime: &mut Runtime, _scope: &mut Scope) -> Result<Object> {
@@ -155,31 +200,13 @@ pub trait Evaluate {
 impl Evaluate for Node {
     fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
         match self {
-            Self::ParenArgs(root, args) => {
-                match root.eval(runtime, scope)? {
-                    Object::Function { func, args: arg_names } => {
-                        if args.len() != arg_names.len() {
-                            return Err(ExpectedArgs(arg_names.len()).into());
-                        }
-
-                        let mut func_scope = Scope::new(Some(scope.root()));
-                        for (i, arg_name) in arg_names.iter().enumerate() {
-                            let arg_node: &Node = &args[i];
-                            let arg = arg_node.eval(runtime, scope)?;
-                            func_scope.define(arg_name, arg);
-                        }
-
-                        match *func {
-                            Function::Pointer(ptr) => {
-                                ptr(runtime, &mut func_scope)
-                            }
-                            Function::Block(block) => {
-                                block.eval(runtime, &mut func_scope)
-                            }
-                        }
-                    }
-                    _ => Err(ExpectedType(Type::Function).into())
+            Self::ParenArgs(root, arg_nodes) => {
+                let object = root.eval(runtime, scope)?;
+                let mut args = Vec::new();
+                for arg in arg_nodes.iter() {
+                    args.push(arg.eval(runtime, scope)?);
                 }
+                call_function(runtime, scope, object, args)
             }
 
             Self::Statement(node) => node.eval(runtime, scope), 
@@ -204,11 +231,13 @@ impl Evaluate for Node {
 
 impl Evaluate for Block {
     fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+        let mut return_value = Object::Null;
+
         for node in &self.nodes {
-            let _ = node.eval(runtime, scope)?;
+            return_value = node.eval(runtime, scope)?;
         }
 
-        Ok(Object::Null)
+        Ok(return_value)
     }
 }
 
@@ -339,13 +368,14 @@ impl Evaluate for BinaryOp {
                 Object::List((a..b).map(|i| Object::Integer(i)).collect())
             }
 
-            SetValue => {
+            Assign => {
                 let Node::Identifier(ref name) = self.a else { unreachable!() };
                 let value = self.b.eval(runtime, scope)?;
                 scope.update(runtime, &name, value)?;
                 Object::Null
             }
-            
+
+            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => todo!(),
             _ => unreachable!()
         })
     }
