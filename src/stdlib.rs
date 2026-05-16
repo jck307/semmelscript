@@ -40,7 +40,7 @@ pub fn init(scope: &mut Scope) {
         println(text);
         print(text);
         call(cmd);
-        // source(path);
+        source(path);
         tostring(value);
     );
 }

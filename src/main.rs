@@ -16,26 +16,11 @@ use {
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-fn run() -> Result<()> {
-    let [_, path]: [String; 2] = std::env::args()
-        .collect::<Vec<_>>().try_into()
-        .unwrap_or_else(|_| panic!("Expected 1 argument!"));
-
-    let buffer = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
-
-    // println!("tokenizing...");
-    let buffer = Buffer::new(buffer.chars().collect());
+pub fn parse(string: String) -> Result<node::Block> {
+    let buffer = Buffer::new(string.chars().collect());
     let mut tokenizer = Tokenizer::new(buffer);
     let (tokens, metas) = tokenizer.tokenize()?;
 
-    // println!("tokens:");
-    // for (token, meta) in tokens.iter().zip(&metas) {
-    //     let pos = format!("{}:{}", meta.row+1, meta.col+1);
-    //     println!("    {pos:5}  {token:?}");
-    // }
-
-    // println!("parsing...");
     let tokens = Buffer::new(tokens.into());
     let mut parser = Parser::new(tokens);
     let block = match parser.parse() {
@@ -49,12 +34,30 @@ fn run() -> Result<()> {
         _ => unreachable!()
     };
 
+    Ok(block)
+}
+
+fn run() -> Result<()> {
+    let [_, path]: [String; 2] = std::env::args()
+        .collect::<Vec<_>>().try_into()
+        .unwrap_or_else(|_| panic!("Expected 1 argument!"));
+
+    let string = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
+
+    let block = parse(string)?;
+
+    // println!("tokens:");
+    // for (token, meta) in tokens.iter().zip(&metas) {
+    //     let pos = format!("{}:{}", meta.row+1, meta.col+1);
+    //     println!("    {pos:5}  {token:?}");
+    // }
+
     // println!("nodes:");
     // for node in block.nodes.iter() {
     //     println!("    {node:#?}");
     // }
 
-    // println!("running...");
     let mut runtime = Runtime::new();
     let mut scope = Scope::new(None);
     stdlib::init(&mut runtime.globals);

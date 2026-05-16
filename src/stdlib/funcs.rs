@@ -1,5 +1,4 @@
 use super::*;
-// use crate::execute;
 use std::process::Command;
 
 pub fn println(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
@@ -12,14 +11,15 @@ pub fn print(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     Ok(Object::Null)
 }
 
-// pub fn source(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-//     let path = get!(runtime, scope, path, String);
-//     let scope: &mut Scope = unsafe { &mut *scope.parent.unwrap() };
-//     let buffer = std::fs::read_to_string(&path)
-//         .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
-//     execute(runtime, scope, buffer);
-//     Ok(Object::Null)
-// }
+pub fn source(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+    let path = get!(runtime, scope, path, String);
+    let scope: &mut Scope = unsafe { &mut *scope.parent.unwrap() };
+    let string = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
+    let block = crate::parse(string)?;
+    block.eval(runtime, scope)?;
+    Ok(Object::Null)
+}
 
 pub fn tostring(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     // TODO use the same formatting as parser::node::Node

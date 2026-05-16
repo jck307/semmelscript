@@ -22,6 +22,7 @@ impl Parser {
             Token::Integer(int) => Node::Integer(*int),
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
+            Token::Operator(Operator::BracketOpen) => Node::List(self.read_args(Operator::BracketClose)?),
             token => { return Err(format!("expected value (found {token:?})").into()) }
         };
 
