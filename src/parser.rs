@@ -157,6 +157,7 @@ impl Parser {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&Token::Operator(Operator::SetValue))?;
         let expr = self.read_expression()?;
+        self.expect_semi()?;
         Ok(Node::Statement(Statement::DefineVariable(
             ident.to_string(),
             Box::new(expr)
@@ -210,11 +211,7 @@ impl Parser {
                         If => self.read_if()?,
                         For => self.read_for()?,
                         Func => self.read_func()?,
-                        Let => {
-                            let node = self.read_let()?;
-                            self.expect_semi()?;
-                            node
-                        }
+                        Let => self.read_let()?,
                         _ => {
                             return Err("not yet implemented".into())
                         }
