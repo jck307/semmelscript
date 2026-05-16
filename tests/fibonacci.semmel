@@ -1,0 +1,9 @@
+let a = 0;
+let b = 1;
+
+for _ in 0..20 {
+    let new = a + b;
+    a = b;
+    b = new;
+    println(tostring(new));
+}
