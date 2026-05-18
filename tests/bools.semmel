@@ -1,0 +1,2 @@
+let bool = true;
+println(tostring(bool));

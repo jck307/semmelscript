@@ -24,6 +24,8 @@ impl Parser {
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
             Token::Operator(Operator::BracketOpen) => Node::List(self.read_args(Operator::BracketClose)?),
+            Token::Keyword(Keyword::True) => Node::Boolean(true),
+            Token::Keyword(Keyword::False) => Node::Boolean(false),
             token => { return Err(format!("expected value (found {token:?})").into()) }
         };
 
@@ -214,9 +216,8 @@ impl Parser {
                         For => self.read_for()?,
                         Func => self.read_func()?,
                         Let => self.read_let()?,
-                        _ => {
-                            return Err("not yet implemented".into())
-                        }
+                        True | False | Elif | Else | In
+                            => { return Err("unexpected keyword".into()) }
                     });
                 }
                 Ok(_) => {
