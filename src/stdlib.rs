@@ -6,9 +6,9 @@ use funcs::*;
 
 #[macro_export]
 macro_rules! get {
-    ($runtime:expr, $scope:expr, $name:ident, $type:ident) => {
+    ($scope:expr, $name:ident, $type:ident) => {
         expect_type!(
-            $scope.get($runtime, stringify!($name))
+            $scope.get(stringify!($name))
                 .unwrap_or_else(|_| {
                     panic!(concat!("invalid arg: ", stringify!($name)));
                 }),

@@ -15,13 +15,17 @@ use {
     runtime::*,
 };
 
-pub use runtime::call_function;
+pub use runtime::{
+    call_function,
+    set_runtime_pointer,
+};
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
 pub fn setup() -> (Runtime, Scope) {
     let mut runtime = Runtime::new();
-    let scope = Scope::new(None);
+    let mut scope = Scope::new(&mut runtime, None);
+    set_runtime_pointer(&mut runtime, &mut scope);
     stdlib::init(&mut runtime.globals);
     (runtime, scope)
 }

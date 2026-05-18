@@ -32,14 +32,18 @@ macro_rules! expect_type {
 }
 
 pub struct Runtime {
-    pub globals: Scope,
+    pub(crate) globals: Scope,
+    pub(crate) objects: HashMap<Pointer, Object>,
+    pub(crate) next_id: Pointer,
 }
+
+type Pointer = u16;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    pub objects: HashMap<usize, Object>,
-    pub names: HashMap<Box<str>, usize>,
-    pub parent: Option<*mut Scope>,
+    pub(crate) parent: Option<*mut Scope>,
+    runtime: *mut Runtime,
+    names: HashMap<Box<str>, Pointer>,
 }
 
 unsafe impl Send for Scope {}
@@ -53,6 +57,7 @@ pub enum Function {
 #[derive(Debug)]
 pub enum Type {
     Null,
+    Pointer,
     String,
     Integer,
     Float,
@@ -64,6 +69,7 @@ pub enum Type {
 #[derive(Debug, Clone)]
 pub enum Object {
     Null,
+    Pointer(Pointer),
     String(String),
     Integer(IntegerType),
     Float(f32),
@@ -80,6 +86,7 @@ impl Object {
         use Type::*;
         match self {
             Self::Null => Null,
+            Self::Pointer(_) => Pointer,
             Self::String(_) => String,
             Self::Integer(_) => Integer,
             Self::Float(_) => Float,
@@ -93,23 +100,38 @@ impl Object {
 impl Runtime {
     pub fn new() -> Self {
         Self {
-            globals: Scope::new(None),
+            globals: Scope::new(std::ptr::null_mut(), None),
+            objects: HashMap::new(),
+            next_id: 0,
         }
+    }
+    
+    pub fn next_id(&mut self) -> Pointer {
+        self.next_id += 1;
+        self.next_id - 1
     }
 }
 
+pub fn set_runtime_pointer(runtime: &mut Runtime, scope: &mut Scope) {
+    runtime.globals.runtime = runtime;
+    scope.runtime = runtime;
+}
+
 impl Scope {
-    pub fn new(parent: Option<*mut Scope>) -> Self {
+    pub fn new(runtime: *mut Runtime, parent: Option<*mut Scope>) -> Self {
         Self {
-            names: HashMap::new(),
-            objects: HashMap::new(),
+            runtime,
             parent,
+            names: HashMap::new(),
         }
     }
 
-    fn add_object(&mut self, object: Object) -> usize {
-        self.objects.insert(self.objects.len(), object);
-        self.objects.len() - 1
+    fn add_object(&mut self, object: Object) -> Pointer {
+        unsafe {
+            let id = (*self.runtime).next_id();
+            (*self.runtime).objects.insert(id, object);
+            id
+        }
     }
 
     // TODO remove runtime?
@@ -119,14 +141,16 @@ impl Scope {
         self.names.insert(name.into(), id);
     }
 
-    pub fn update(&mut self, runtime: &mut Runtime, name: &str, object: Object) -> Result<()> {
+    pub fn update(&mut self, name: &str, object: Object) -> Result<()> {
         if let Some(id) = self.names.get(name) {
-            self.objects.insert(*id, object);
+            unsafe {
+                (*self.runtime).objects.insert(*id, object);
+            }
             Ok(())
 
         } else if let Some(parent) = self.parent {
             unsafe {
-                (*parent).update(runtime, name, object)
+                (*parent).update(name, object)
             }
 
         } else {
@@ -134,21 +158,25 @@ impl Scope {
         }
     }
 
-    pub fn get(&mut self, runtime: &Runtime, name: &str) -> Result<Object> {
+    pub fn get(&mut self, name: &str) -> Result<Object> {
         if let Some(id) = self.names.get(name) {
-            Ok(self.objects[id].clone())
+            unsafe {
+                Ok((&(*self.runtime).objects)[id].clone())
+            }
         } else {
             if let Some(parent) = self.parent {
                 unsafe {
-                    (*parent).get(runtime, name)
+                    (*parent).get(name)
                 }
             } else {
-                match runtime.globals.names.get(name) {
-                    Some(id) => {
-                        Ok(runtime.globals.objects[id].clone())
+                unsafe {
+                    if !(*self.runtime).globals.runtime.is_null() {
+                        if let Some(id) = (*self.runtime).globals.names.get(name) {
+                            return Ok((&(*self.runtime).objects)[id].clone())
+                        }
                     }
-                    None => Err(NameError(name.into()).into())
                 }
+                Err(NameError(name.into()).into())
             }
         }
     }
@@ -171,7 +199,7 @@ pub fn call_function(runtime: &mut Runtime, scope: &mut Scope, object: Object, m
                 return Err(ExpectedArgs(arg_names.len()).into());
             }
 
-            let mut func_scope = Scope::new(Some(scope.root()));
+            let mut func_scope = Scope::new(runtime, Some(scope.root()));
             for arg_name in arg_names.iter() {
                 func_scope.define(arg_name, args.remove(0));
             }
@@ -216,7 +244,7 @@ impl Evaluate for Node {
                 node.eval(runtime, &mut scope.clone())
             }
 
-            Self::Identifier(ident) => scope.get(runtime, ident),
+            Self::Identifier(ident) => scope.get(ident),
             Self::String(string) => Ok(Object::String(string.to_string())),
             Self::Integer(integer) => Ok(Object::Integer(*integer)),
             Self::Boolean(boolean) => Ok(Object::Boolean(*boolean)),
@@ -286,7 +314,7 @@ impl Evaluate for Statement {
                 let sequence = expect_type!(sequence.eval(runtime, scope)?, List);
                 for object in sequence.iter() {
                     // TODO reuse scope instead
-                    let mut scope = Scope::new(Some(scope));
+                    let mut scope = Scope::new(runtime, Some(scope));
                     scope.define(ident, object.clone());
                     block.eval(runtime, &mut scope)?;
                 }
@@ -371,7 +399,7 @@ impl Evaluate for BinaryOp {
             Assign => {
                 let Node::Identifier(ref name) = self.a else { unreachable!() };
                 let value = self.b.eval(runtime, scope)?;
-                scope.update(runtime, &name, value)?;
+                scope.update(&name, value)?;
                 Object::Null
             }
 

@@ -10,6 +10,7 @@ fn run() -> Result<()> {
 
     let block = parse(string)?;
     let (mut runtime, mut scope) = setup();
+    set_runtime_pointer(&mut runtime, &mut scope);
     block.eval(&mut runtime, &mut scope)?;
 
     Ok(())
