@@ -134,7 +134,6 @@ impl Scope {
         }
     }
 
-    // TODO remove runtime?
     pub fn define(&mut self, name: &str, object: Object) {
         assert!(!self.names.contains_key(name)); // TODO fix
         let id = self.add_object(object);
