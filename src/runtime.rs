@@ -33,8 +33,8 @@ macro_rules! expect_type {
 
 pub struct Runtime {
     pub(crate) globals: Scope,
-    pub(crate) objects: HashMap<Pointer, Object>,
-    pub(crate) next_id: Pointer,
+    objects: HashMap<Pointer, Object>,
+    next_id: Pointer,
 }
 
 type Pointer = u16;
