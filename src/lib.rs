@@ -22,6 +22,10 @@ pub use runtime::{
 
 pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
 
+pub type Integer = i32;
+pub type Float = f32;
+pub type Pointer = u16;
+
 pub fn setup() -> (Runtime, Scope) {
     let mut runtime = Runtime::new();
     let mut scope = Scope::new(&mut runtime, None);

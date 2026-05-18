@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::*;
 use crate::token::Operator;
 
 #[derive(Debug, Clone)]
@@ -13,7 +14,8 @@ pub enum Node {
 
     Identifier(Box<str>),
     String(Box<str>),
-    Integer(i32),
+    Integer(Integer),
+    Float(Float),
     Boolean(bool),
     List(Vec<Node>),
 }

@@ -1,5 +1,7 @@
 #![allow(unused)]
 
+use crate::*;
+
 macro_rules! string_enum {
     ($name:ident, $($field:ident = $str:expr,)*) => {
         #[derive(Debug, Clone, PartialEq)]
@@ -37,7 +39,8 @@ macro_rules! string_enum {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     String(String),
-    Integer(i32),
+    Integer(Integer),
+    Float(Float),
     Boolean(bool),
     Identifier(String),
     Keyword(Keyword),

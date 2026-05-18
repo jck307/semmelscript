@@ -27,6 +27,7 @@ pub fn tostring(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     Ok(Object::String(match obj {
         Object::String(string) => string,
         Object::Integer(integer) => integer.to_string(),
+        Object::Float(float) => float.to_string(),
         _ => format!("{obj:?}")
     }))
 }

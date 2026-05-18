@@ -45,13 +45,23 @@ impl Tokenizer {
         }
     }
 
-    fn read_int(&mut self) -> Result<Token> {
+    fn read_num(&mut self) -> Result<Token> {
         // TODO fix
-        let mut string = String::new();
+        let mut digits = String::new();
         for ch in self.buffer.next_from(&self.digit_chars) {
-            string.push(ch);
+            digits.push(ch);
         }
-        Ok(Token::Integer(string.parse()?))
+        if let Ok(ch) = self.buffer.peek() {
+            if *ch == '.' {
+                self.buffer.step();
+                let mut decimals = String::new();
+                for ch in self.buffer.next_from(&self.digit_chars) {
+                    decimals.push(ch);
+                }
+                return Ok(Token::Float(format!("{digits}.{decimals}").parse()?))
+            }
+        }
+        Ok(Token::Integer(digits.parse()?))
     }
 
     fn read_str(&mut self, term: char) -> Result<Token> {
@@ -99,7 +109,7 @@ impl Tokenizer {
 
     fn read_token(&mut self, ch: char) -> Result<Token> {
         if DIGITS.contains(ch) {
-            self.read_int()
+            self.read_num()
         } else if STR_TERMINATORS.contains(ch) {
             self.read_str(ch)
         } else if IDENTIFIER_OPENERS.contains(ch) {

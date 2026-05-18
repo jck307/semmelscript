@@ -1,0 +1,3 @@
+println("10 / 3 == " + tostring(10 / 3));
+println("10 / 3. == " + tostring(10 / 3.));
+println("64 ^ 0.5 == " + tostring(64 ^ 0.5));

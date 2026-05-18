@@ -2,8 +2,6 @@ use crate::*;
 use crate::node::*;
 use std::collections::HashMap;
 
-type IntegerType = i32;
-
 // TODO replace some 'name' with 'ident'
 
 use quick_error::quick_error;
@@ -13,6 +11,7 @@ quick_error! {
     pub enum RuntimeError {
         ExpectedType(typ: Type, found: Type) {}
         ExpectedArgs(len: usize) {}
+        ExpectedNumber(found: Type) {}
         NameError(name: Box<str>) {}
     }
 }
@@ -36,8 +35,6 @@ pub struct Runtime {
     objects: HashMap<Pointer, Object>,
     next_id: Pointer,
 }
-
-type Pointer = u16;
 
 #[derive(Debug, Clone)]
 pub struct Scope {
@@ -71,8 +68,8 @@ pub enum Object {
     Null,
     Pointer(Pointer),
     String(String),
-    Integer(IntegerType),
-    Float(f32),
+    Integer(Integer),
+    Float(Float),
     Boolean(bool),
     Function {
         func: Box<Function>,
@@ -246,6 +243,7 @@ impl Evaluate for Node {
             Self::Identifier(ident) => scope.get(ident),
             Self::String(string) => Ok(Object::String(string.to_string())),
             Self::Integer(integer) => Ok(Object::Integer(*integer)),
+            Self::Float(float) => Ok(Object::Float(*float)),
             Self::Boolean(boolean) => Ok(Object::Boolean(*boolean)),
             Self::List(list) => {
                 let result: Result<Vec<Object>> = list.iter()
@@ -323,6 +321,37 @@ impl Evaluate for Statement {
     }
 }
 
+macro_rules! calculate {
+    ($self:ident, $type:ident, $a:ident, $b:ident, $pow:ident) => {{
+        match $self.op {
+            Add | Sub | Mul | Div | Pow | Mod => {
+                Object::$type(match $self.op {
+                    Add => $a + $b,
+                    Sub => $a - $b,
+                    Mul => $a * $b,
+                    Div => $a / $b,
+                    Pow => $a.$pow($b.try_into()
+                        .expect("invalid exponent type")),
+                    Mod => $a % $b,
+                    _ => unreachable!()
+                })
+            }
+            Equal | Inequal | Less | LessEqual | Greater | GreaterEqual => {
+                Object::Boolean(match $self.op {
+                    Equal => $a == $b,
+                    Inequal => $a != $b,
+                    Less => $a < $b,
+                    LessEqual => $a <= $b,
+                    Greater => $a >= $b,
+                    GreaterEqual => $a >= $b,
+                    _ => unreachable!()
+                })
+            }
+            _ => unreachable!()
+        }
+    }}
+}
+
 impl Evaluate for BinaryOp {
     fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
         use crate::token::Operator::*;
@@ -347,35 +376,35 @@ impl Evaluate for BinaryOp {
                     _ => {}
                 }
 
-                let a = expect_type!(a, Integer);
-                let b = expect_type!(b, Integer);
-
-                match self.op {
-                    Add | Sub | Mul | Div | Pow | Mod => {
-                        Object::Integer(match self.op {
-                            Add => a + b,
-                            Sub => a - b,
-                            Mul => a * b,
-                            Div => a / b,
-                            Pow => a.pow(b.try_into()
-                                .expect("expected exponent of type u32")),
-                            Mod => a % b,
-                            _ => unreachable!()
-                        })
+                match a {
+                    Object::Integer(a) => {
+                        match b {
+                            Object::Integer(b) => {
+                                return Ok(calculate!(self, Integer, a, b, pow))
+                            }
+                            Object::Float(b) => {
+                                let a = a as f32;
+                                return Ok(calculate!(self, Float, a, b, powf))
+                            }
+                            _ => {}
+                        }
                     }
-                    Equal | Inequal | Less | LessEqual | Greater | GreaterEqual => {
-                        Object::Boolean(match self.op {
-                            Equal => a == b,
-                            Inequal => a != b,
-                            Less => a < b,
-                            LessEqual => a <= b,
-                            Greater => a >= b,
-                            GreaterEqual => a >= b,
-                            _ => unreachable!()
-                        })
+                    Object::Float(a) => {
+                        match b {
+                            Object::Integer(b) => {
+                                let b = b as f32;
+                                return Ok(calculate!(self, Float, a, b, powf))
+                            }
+                            Object::Float(b) => {
+                                return Ok(calculate!(self, Float, a, b, powf))
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => unreachable!()
+                    _ => {}
                 }
+
+                return Err(ExpectedNumber(a.get_type()).into())
             }
 
             And | Or => {

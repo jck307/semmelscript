@@ -20,6 +20,7 @@ impl Parser {
         let mut value = match self.tokens.next()? {
             Token::String(string) => Node::String(string.clone().into()),
             Token::Integer(int) => Node::Integer(*int),
+            Token::Float(float) => Node::Float(*float),
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
             Token::Operator(Operator::BracketOpen) => Node::List(self.read_args(Operator::BracketClose)?),
