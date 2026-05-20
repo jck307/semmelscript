@@ -32,15 +32,14 @@ macro_rules! expect_type {
 
 pub struct Runtime {
     pub globals: Scope,
-    objects: HashMap<Pointer, Object>,
-    next_id: Pointer,
 }
 
 #[derive(Debug, Clone)]
 pub struct Scope {
     pub(crate) parent: Option<*mut Scope>,
     runtime: *mut Runtime,
-    names: HashMap<Box<str>, Pointer>,
+    stack: Vec<Object>,
+    names: HashMap<Box<str>, usize>,
 }
 
 unsafe impl Send for Scope {}
@@ -66,7 +65,7 @@ pub enum Type {
 #[derive(Debug, Clone)]
 pub enum Object {
     Null,
-    Pointer(Pointer),
+    Pointer(*mut Object),
     String(String),
     Integer(Integer),
     Float(Float),
@@ -98,14 +97,7 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             globals: Scope::new(std::ptr::null_mut(), None),
-            objects: HashMap::new(),
-            next_id: 0,
         }
-    }
-    
-    pub fn next_id(&mut self) -> Pointer {
-        self.next_id += 1;
-        self.next_id - 1
     }
 }
 
@@ -119,16 +111,14 @@ impl Scope {
         Self {
             runtime,
             parent,
+            stack: Vec::new(),
             names: HashMap::new(),
         }
     }
 
-    fn add_object(&mut self, object: Object) -> Pointer {
-        unsafe {
-            let id = (*self.runtime).next_id();
-            (*self.runtime).objects.insert(id, object);
-            id
-        }
+    fn add_object(&mut self, object: Object) -> usize {
+        self.stack.push(object);
+        self.stack.len() - 1
     }
 
     pub fn define(&mut self, name: &str, object: Object) {
@@ -139,9 +129,7 @@ impl Scope {
 
     pub fn update(&mut self, name: &str, object: Object) -> Result<()> {
         if let Some(id) = self.names.get(name) {
-            unsafe {
-                (*self.runtime).objects.insert(*id, object);
-            }
+            self.stack[*id] = object;
             Ok(())
 
         } else if let Some(parent) = self.parent {
@@ -156,9 +144,7 @@ impl Scope {
 
     pub fn get(&mut self, name: &str) -> Result<Object> {
         if let Some(id) = self.names.get(name) {
-            unsafe {
-                Ok((&(*self.runtime).objects)[id].clone())
-            }
+            Ok(self.stack[*id].clone())
         } else {
             if let Some(parent) = self.parent {
                 unsafe {
@@ -168,7 +154,7 @@ impl Scope {
                 unsafe {
                     if !(*self.runtime).globals.runtime.is_null() {
                         if let Some(id) = (*self.runtime).globals.names.get(name) {
-                            return Ok((&(*self.runtime).objects)[id].clone())
+                            return Ok((&(*self.runtime).globals.stack)[*id].clone())
                         }
                     }
                 }

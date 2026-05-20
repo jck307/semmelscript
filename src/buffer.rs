@@ -5,8 +5,8 @@ use crate::{
 use std::fmt::Debug;
 
 pub struct Buffer<T> {
-    buffer: Box<[T]>,
-    pub i: usize,
+    pub(crate) buffer: Box<[T]>,
+    pub(crate) i: usize,
 }
 
 const EOF: &'static str = "unexpected end of file";

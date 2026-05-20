@@ -51,8 +51,8 @@ impl Tokenizer {
         for ch in self.buffer.next_from(&self.digit_chars) {
             digits.push(ch);
         }
-        if let Ok(ch) = self.buffer.peek() {
-            if *ch == '.' {
+        if let Ok('.') = self.buffer.peek() {
+            if let Some('.') = self.buffer.buffer.get(self.buffer.i+1) {} else {
                 self.buffer.step();
                 let mut decimals = String::new();
                 for ch in self.buffer.next_from(&self.digit_chars) {
