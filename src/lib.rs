@@ -6,16 +6,19 @@ pub mod parser;
 pub mod syntax;
 pub mod stdlib;
 pub mod runtime;
-pub mod prelude;
 
 use {
     buffer::Buffer,
     tokenizer::Tokenizer,
     parser::Parser,
-    runtime::*,
 };
 
 pub use runtime::{
+    Scope,
+    Runtime,
+    Evaluate,
+    Object,
+    Type,
     call_function,
     set_runtime_pointer,
 };
@@ -26,12 +29,15 @@ pub type Integer = i32;
 pub type Float = f32;
 pub type Pointer = u16;
 
-pub fn setup() -> (Runtime, Scope) {
-    let mut runtime = Runtime::new();
-    let mut scope = Scope::new(&mut runtime, None);
-    set_runtime_pointer(&mut runtime, &mut scope);
-    stdlib::init(&mut runtime.globals);
-    (runtime, scope)
+#[macro_export]
+macro_rules! setup {
+    () => {{
+        let mut runtime = semmel::Runtime::new();
+        let mut scope = semmel::Scope::new(&mut runtime, None);
+        semmel::set_runtime_pointer(&mut runtime, &mut scope);
+        semmel::stdlib::init(&mut runtime.globals);
+        (runtime, scope)
+    }}
 }
 
 pub fn parse(string: String) -> Result<node::Block> {

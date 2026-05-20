@@ -1,4 +1,4 @@
-use semmel::{*, runtime::Evaluate};
+use semmel::*;
 
 fn run() -> Result<()> {
     let [_, path]: [String; 2] = std::env::args()
@@ -9,8 +9,7 @@ fn run() -> Result<()> {
         .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
 
     let block = parse(string)?;
-    let (mut runtime, mut scope) = setup();
-    set_runtime_pointer(&mut runtime, &mut scope);
+    let (mut runtime, mut scope) = setup!();
     block.eval(&mut runtime, &mut scope)?;
 
     Ok(())

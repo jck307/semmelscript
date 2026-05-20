@@ -31,7 +31,7 @@ macro_rules! expect_type {
 }
 
 pub struct Runtime {
-    pub(crate) globals: Scope,
+    pub globals: Scope,
     objects: HashMap<Pointer, Object>,
     next_id: Pointer,
 }
