@@ -11,7 +11,7 @@ quick_error! {
     pub enum RuntimeError {
         ExpectedType(typ: Type, found: Type) {}
         ExpectedArgs(len: usize) {}
-        ExpectedNumber(found: Type) {}
+        ExpectedNumber {}
         NameError(name: Box<str>) {}
     }
 }
@@ -303,6 +303,14 @@ impl Evaluate for Statement {
                 }
                 Ok(Object::Null)
             }
+            Self::While(expr, block) => {
+                while expect_type!(expr.eval(runtime, scope)?, Boolean) {
+                    // TODO reuse scope instead
+                    let mut scope = Scope::new(runtime, Some(scope));
+                    block.eval(runtime, &mut scope)?;
+                }
+                Ok(Object::Null)
+            }
         }
     }
 }
@@ -330,6 +338,26 @@ macro_rules! calculate {
                     LessEqual => $a <= $b,
                     Greater => $a >= $b,
                     GreaterEqual => $a >= $b,
+                    _ => unreachable!()
+                })
+            }
+            _ => unreachable!()
+        }
+    }}
+}
+
+macro_rules! calculate_opassign {
+    ($self:ident, $type:ident, $a:ident, $b:ident, $pow:ident) => {{
+        match $self.op {
+            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => {
+                Object::$type(match $self.op {
+                    AddAssign => $a + $b,
+                    SubAssign => $a - $b,
+                    MulAssign => $a * $b,
+                    DivAssign => $a / $b,
+                    PowAssign => $a.$pow($b.try_into()
+                        .expect("invalid exponent type")),
+                    ModAssign => $a % $b,
                     _ => unreachable!()
                 })
             }
@@ -390,7 +418,7 @@ impl Evaluate for BinaryOp {
                     _ => {}
                 }
 
-                return Err(ExpectedNumber(a.get_type()).into())
+                return Err(ExpectedNumber.into())
             }
 
             And | Or => {
@@ -417,7 +445,40 @@ impl Evaluate for BinaryOp {
                 Object::Null
             }
 
-            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => todo!(),
+            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => {
+                let Node::Identifier(ref name) = self.a else { unreachable!() };
+                let a = self.a.eval(runtime, scope)?;
+                let b = self.b.eval(runtime, scope)?;
+                scope.update(name, match a {
+                    Object::Integer(a) => {
+                        match b {
+                            Object::Integer(b) => {
+                                calculate_opassign!(self, Integer, a, b, pow)
+                            }
+                            Object::Float(b) => {
+                                let a = a as f32;
+                                calculate_opassign!(self, Float, a, b, powf)
+                            }
+                            _ => { return Err(ExpectedNumber.into()) }
+                        }
+                    }
+                    Object::Float(a) => {
+                        match b {
+                            Object::Integer(b) => {
+                                let b = b as f32;
+                                calculate_opassign!(self, Float, a, b, powf)
+                            }
+                            Object::Float(b) => {
+                                calculate_opassign!(self, Float, a, b, powf)
+                            }
+                            _ => { return Err(ExpectedNumber.into()) }
+                        }
+                    }
+                    _ => { return Err(ExpectedNumber.into()) }
+                })?;
+                Object::Null
+            }
+
             _ => unreachable!()
         })
     }

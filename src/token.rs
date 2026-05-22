@@ -56,6 +56,7 @@ string_enum! { Keyword,
     True = "true",
     False = "false",
     For = "for",
+    While = "while",
     In = "in",
 }
 

@@ -157,6 +157,15 @@ impl Parser {
         )))
     }
 
+    fn read_while(&mut self) -> Result<Node> {
+        let expr = self.read_expression()?;
+        let block = self.read_block(true)?;
+        Ok(Node::Statement(Statement::While(
+            Box::new(expr),
+            Box::new(block)
+        )))
+    }
+
     fn read_let(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&Token::Operator(Operator::Assign))?;
@@ -214,6 +223,7 @@ impl Parser {
                     nodes.push(match kw {
                         If => self.read_if()?,
                         For => self.read_for()?,
+                        While => self.read_while()?,
                         Func => self.read_func()?,
                         Let => self.read_let()?,
                         True | False | Elif | Else | In

@@ -34,6 +34,7 @@ pub enum Statement {
     DefineFunction(String, Vec<Box<str>>, Block),
     If(Box<Node>, Box<Node>, Option<Box<Node>>),
     For(Box<str>, Box<Node>, Box<Node>),
+    While(Box<Node>, Box<Node>),
 }
 
 #[derive(Debug, Clone)]
