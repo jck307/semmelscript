@@ -124,28 +124,36 @@ impl Tokenizer {
     pub fn tokenize(&mut self) -> Result<(Vec<Token>, Vec<TokenMeta>)> {
         let mut tokens = Vec::new();
         let mut metas = Vec::new();
+        let mut comment = false;
 
         loop {
             if let Ok(ch) = self.buffer.peek().cloned() {
-                let meta = TokenMeta {
-                    row: self.row,
-                    col: self.col,
-                };
-
-                if !ch.is_ascii_whitespace() {
-                    let i = self.buffer.i as u16;
-                    let token = self.read_token(ch)?;
-                    tokens.push(token);
-                    metas.push(meta);
-                    self.col += self.buffer.i as u16 - i;
+                if ch == '/' && let Some('/') = self.buffer.get(self.buffer.i+1) {
+                    comment = true;
+                    self.buffer.stepn(2);
 
                 } else {
-                    self.buffer.step();
-                    if ch == '\n' {
-                        self.row += 1;
-                        self.col = 0;
+                    if !comment && !ch.is_ascii_whitespace() {
+                        let meta = TokenMeta {
+                            row: self.row,
+                            col: self.col,
+                        };
+
+                        let i = self.buffer.i as u16;
+                        let token = self.read_token(ch)?;
+                        tokens.push(token);
+                        metas.push(meta);
+                        self.col += self.buffer.i as u16 - i;
+
                     } else {
-                        self.col += 1;
+                        self.buffer.step();
+                        if ch == '\n' {
+                            self.row += 1;
+                            self.col = 0;
+                            comment = false;
+                        } else {
+                            self.col += 1;
+                        }
                     }
                 }
 

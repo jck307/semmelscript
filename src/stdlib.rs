@@ -24,12 +24,12 @@ macro_rules! add {
         $($name:ident($($arg:ident$(,)?)*);)*) => {
 
         $(
-            $scope.define(stringify!($name),
-                Object::Function {
-                    func: Box::new(Function::Pointer($name)),
-                    args: vec![$( stringify!($arg).into(), )*],
-                }
-            );
+            let func = Object::Function {
+                func: Box::new(Function::Pointer($name)),
+                args: vec![$( stringify!($arg).into(), )*],
+                scope: $scope,
+            };
+            $scope.define(stringify!($name), func);
         )*
     }
 }

@@ -2,4 +2,25 @@ fn greet(name) {
     println("hello " + name + "!");
 }
 
+fn print_x() {
+    println("x == " + tostring(x));
+}
+
+fn inc_x() {
+    x += 1;
+}
+
 greet(call("whoami"));
+
+let x = 0;
+
+print_x();
+inc_x();
+print_x();
+
+if x == 1 {
+    let x = 10;
+    print_x();  // does not print 10
+    inc_x();
+    print_x();
+}

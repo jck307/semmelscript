@@ -73,6 +73,7 @@ pub enum Object {
     Function {
         func: Box<Function>,
         args: Vec<Box<str>>,
+        scope: *mut Scope,
     },
     List(Vec<Object>),
 }
@@ -122,7 +123,7 @@ impl Scope {
     }
 
     pub fn define(&mut self, name: &str, object: Object) {
-        assert!(!self.names.contains_key(name)); // TODO fix
+        // assert!(!self.names.contains_key(name)); // TODO fix
         let id = self.add_object(object);
         self.names.insert(name.into(), id);
     }
@@ -174,14 +175,14 @@ impl Scope {
     }
 }
 
-pub fn call_function(runtime: &mut Runtime, scope: &mut Scope, object: Object, mut args: Vec<Object>) -> Result<Object> {
+pub fn call_function(runtime: &mut Runtime, object: Object, mut args: Vec<Object>) -> Result<Object> {
     match object {
-        Object::Function { func, args: arg_names } => {
+        Object::Function { func, args: arg_names, scope } => {
             if args.len() != arg_names.len() {
                 return Err(ExpectedArgs(arg_names.len()).into());
             }
 
-            let mut func_scope = Scope::new(runtime, Some(scope.root()));
+            let mut func_scope = Scope::new(runtime, Some(unsafe { (*scope).root() }));
             for arg_name in arg_names.iter() {
                 func_scope.define(arg_name, args.remove(0));
             }
@@ -216,7 +217,7 @@ impl Evaluate for Node {
                 for arg in arg_nodes.iter() {
                     args.push(arg.eval(runtime, scope)?);
                 }
-                call_function(runtime, scope, object, args)
+                call_function(runtime, object, args)
             }
 
             Self::BinaryOp(node) => node.eval(runtime, scope), 
@@ -244,10 +245,12 @@ impl Evaluate for Node {
 
             Self::DefineFunction(name, args, block) => {
                 // TODO replace cloning with pointer or something?
-                scope.define(name, Object::Function {
+                let func = Object::Function {
                     func: Box::new(Function::Block(block.clone())),
                     args: args.clone(),
-                });
+                    scope,
+                };
+                scope.define(name, func);
                 Ok(Object::Null)
             }
 

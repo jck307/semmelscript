@@ -19,6 +19,10 @@ impl<T: PartialEq + Clone + Debug> Buffer<T> {
         }
     }
 
+    pub(crate) fn get(&self, i: usize) -> Option<&T> {
+        self.buffer.get(i)
+    }
+
     pub(crate) fn step(&mut self) {
         self.i += 1;
     }
