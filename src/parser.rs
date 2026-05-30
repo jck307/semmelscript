@@ -24,6 +24,10 @@ impl Parser {
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
             Token::Operator(Operator::BracketOpen) => Node::List(self.read_args(Operator::BracketClose)?),
+            Token::Operator(Operator::BraceOpen) => {
+                self.tokens.back();
+                self.read_block(true)?
+            },
             Token::Keyword(Keyword::True) => Node::Boolean(true),
             Token::Keyword(Keyword::False) => Node::Boolean(false),
             token => { return Err(format!("expected value (found {token:?})").into()) }
@@ -170,7 +174,7 @@ impl Parser {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&Token::Operator(Operator::Assign))?;
         let expr = self.read_expression()?;
-        self.expect_semi()?;
+        self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
         Ok(Node::DefineVariable(
             ident.to_string(),
             Box::new(expr)
@@ -197,12 +201,9 @@ impl Parser {
         ))
     }
 
-    fn expect_semi(&mut self) -> Result<()> {
-        self.tokens.expect(&Token::Operator(Operator::Semicolon))
-    }
-
     fn read_block(&mut self, inner: bool) -> Result<Node> {
         let mut nodes = Vec::new();
+        let mut return_last = false;
 
         if inner {
             self.tokens.expect(&Token::Operator(Operator::BraceOpen))?;
@@ -218,6 +219,9 @@ impl Parser {
                         return Err("unexpected '}'".into())
                     }
                 }
+                Ok(Token::Operator(Operator::BraceOpen)) => {
+                    nodes.push(self.read_block(true)?);
+                }
                 Ok(Token::Keyword(kw)) => {
                     self.tokens.step();
                     nodes.push(match kw {
@@ -232,7 +236,13 @@ impl Parser {
                 }
                 Ok(_) => {
                     nodes.push(self.read_expression()?);
-                    self.expect_semi()?;
+                    match self.tokens.peek()? {
+                        Token::Operator(Operator::Semicolon) => self.tokens.step(),
+                        Token::Operator(Operator::BraceClose) => {
+                            return_last = true;
+                        }
+                        token => { return Err(format!("expected ';' or '}}' (found {token:?})").into()) }
+                    }
                 }
                 Err(_) => {
                     break
@@ -242,6 +252,7 @@ impl Parser {
 
         Ok(Node::Block(Block {
             nodes,
+            return_last,
         }))
     }
 

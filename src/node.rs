@@ -40,4 +40,5 @@ pub enum Statement {
 #[derive(Debug, Clone)]
 pub struct Block {
     pub nodes: Vec<Node>,
+    pub return_last: bool,
 }

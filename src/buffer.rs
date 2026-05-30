@@ -31,6 +31,10 @@ impl<T: PartialEq + Clone + Debug> Buffer<T> {
         self.i += amount;
     }
 
+    pub(crate) fn back(&mut self) {
+        self.i -= 1;
+    }
+
     pub(crate) fn next(&mut self) -> Result<&T> {
         self.step();
         self.buffer.get(self.i - 1).ok_or(EOF.into())

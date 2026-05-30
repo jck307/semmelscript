@@ -2,6 +2,11 @@ fn greet(name) {
     println("hello " + name + "!");
 }
 
+// call() is a builtin that runs a system command
+greet(call("whoami"));
+
+// demonstrate function scopes:
+
 fn print_x() {
     println("x == " + tostring(x));
 }
@@ -10,17 +15,31 @@ fn inc_x() {
     x += 1;
 }
 
-greet(call("whoami"));
-
 let x = 0;
 
 print_x();
 inc_x();
 print_x();
 
-if x == 1 {
-    let x = 10;
-    print_x();  // does not print 10
+{
+    let x = 10;  // defines a new x, only for this scope
+    print_x();   // does not print 10!
     inc_x();
     print_x();
 }
+
+// demonstrate return values:
+
+fn return_value() {
+    // without semicolon
+    "some value"
+}
+
+fn return_null() {
+    // with semicolon
+    "is not returned";
+}
+
+println(return_value());
+println(tostring(return_null()));
+

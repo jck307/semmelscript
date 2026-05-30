@@ -300,13 +300,17 @@ impl Evaluate for Node {
 
 impl Evaluate for Block {
     fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-        let mut return_value = Object::Null;
+        let mut last_value = Object::Null;
 
         for node in &self.nodes {
-            return_value = node.eval(runtime, scope)?;
+            last_value = node.eval(runtime, scope)?;
         }
 
-        Ok(return_value)
+        if self.return_last {
+            Ok(last_value)
+        } else {
+            Ok(Object::Null)
+        }
     }
 }
 
