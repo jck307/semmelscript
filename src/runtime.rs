@@ -431,9 +431,12 @@ impl Evaluate for BinaryOp {
                 })
             }
 
-            RangeExcl => {
+            RangeExcl | RangeIncl => {
                 let a = expect_type!(self.a.eval(runtime, scope)?, Integer);
-                let b = expect_type!(self.b.eval(runtime, scope)?, Integer);
+                let mut b = expect_type!(self.b.eval(runtime, scope)?, Integer);
+                if self.op == RangeIncl {
+                    b += 1;
+                }
                 Object::List((a..b).map(|i| Object::Integer(i)).collect())
             }
 

@@ -99,6 +99,7 @@ string_enum! { Operator,
 
     // ranges
     RangeExcl = "..",
+    RangeIncl = "..=",
 
     // assign
     Assign = "=",
@@ -113,7 +114,7 @@ string_enum! { Operator,
 use Operator::*;
 
 pub static OPERATOR_ORDER: &[&[Operator]] = &[
-    &[RangeExcl],
+    &[RangeExcl, RangeIncl],
     &[Pow],
     &[Mul, Div, Mod],
     &[Add, Sub],
@@ -139,6 +140,7 @@ pub static BINARY_OPERATORS: &[Operator] = &[
     And,
     Or,
     RangeExcl,
+    RangeIncl,
     Assign,
     AddAssign,
     SubAssign,
