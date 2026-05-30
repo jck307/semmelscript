@@ -134,7 +134,7 @@ impl Parser {
             None
         };
 
-        Ok(Node::Statement(Statement::If(Box::new(condition), Box::new(block), ext)))
+        Ok(Node::If(Box::new(condition), Box::new(block), ext))
     }
 
     fn read_ident_as_string(&mut self) -> Result<String> {
@@ -150,20 +150,20 @@ impl Parser {
         self.tokens.expect(&Token::Keyword(Keyword::In))?;
         let expr = self.read_expression()?;
         let block = self.read_block(true)?;
-        Ok(Node::Statement(Statement::For(
+        Ok(Node::For(
             ident.into(),
             Box::new(expr),
             Box::new(block)
-        )))
+        ))
     }
 
     fn read_while(&mut self) -> Result<Node> {
         let expr = self.read_expression()?;
         let block = self.read_block(true)?;
-        Ok(Node::Statement(Statement::While(
+        Ok(Node::While(
             Box::new(expr),
             Box::new(block)
-        )))
+        ))
     }
 
     fn read_let(&mut self) -> Result<Node> {
@@ -171,10 +171,10 @@ impl Parser {
         self.tokens.expect(&Token::Operator(Operator::Assign))?;
         let expr = self.read_expression()?;
         self.expect_semi()?;
-        Ok(Node::Statement(Statement::DefineVariable(
+        Ok(Node::DefineVariable(
             ident.to_string(),
             Box::new(expr)
-        )))
+        ))
     }
 
     fn read_func(&mut self) -> Result<Node> {
@@ -190,11 +190,11 @@ impl Parser {
         }
         let Node::Block(block) = self.read_block(true)?
             else { unreachable!() };
-        Ok(Node::Statement(Statement::DefineFunction(
+        Ok(Node::DefineFunction(
             ident.to_string(),
             args,
             block
-        )))
+        ))
     }
 
     fn expect_semi(&mut self) -> Result<()> {

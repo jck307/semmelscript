@@ -5,13 +5,18 @@ use crate::token::Operator;
 
 #[derive(Debug, Clone)]
 pub enum Node {
-    Statement(Statement),
     Block(Block),
     ParenArgs(Box<Node>, Vec<Node>),
-
-    // Operators
     BinaryOp(Box<BinaryOp>),
 
+    // Statements
+    DefineVariable(String, Box<Node>),
+    DefineFunction(String, Vec<Box<str>>, Block),
+    If(Box<Node>, Box<Node>, Option<Box<Node>>),
+    For(Box<str>, Box<Node>, Box<Node>),
+    While(Box<Node>, Box<Node>),
+
+    // Literals
     Identifier(Box<str>),
     String(Box<str>),
     Integer(Integer),
@@ -30,11 +35,6 @@ pub struct BinaryOp {
 #[derive(Debug, Clone)]
 pub enum Statement {
     // TODO replace String with Box<str>
-    DefineVariable(String, Box<Node>),
-    DefineFunction(String, Vec<Box<str>>, Block),
-    If(Box<Node>, Box<Node>, Option<Box<Node>>),
-    For(Box<str>, Box<Node>, Box<Node>),
-    While(Box<Node>, Box<Node>),
 }
 
 #[derive(Debug, Clone)]

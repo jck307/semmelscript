@@ -219,7 +219,6 @@ impl Evaluate for Node {
                 call_function(runtime, scope, object, args)
             }
 
-            Self::Statement(node) => node.eval(runtime, scope), 
             Self::BinaryOp(node) => node.eval(runtime, scope), 
 
             Self::Block(node) => {
@@ -236,6 +235,62 @@ impl Evaluate for Node {
                     .map(|n| n.eval(runtime, scope)).collect();
                 Ok(Object::List(result?))
             }
+
+            Self::DefineVariable(name, value) => {
+                let value = value.eval(runtime, scope)?;
+                scope.define(name, value);
+                Ok(Object::Null)
+            }
+
+            Self::DefineFunction(name, args, block) => {
+                // TODO replace cloning with pointer or something?
+                scope.define(name, Object::Function {
+                    func: Box::new(Function::Block(block.clone())),
+                    args: args.clone(),
+                });
+                Ok(Object::Null)
+            }
+
+            Self::If(condition, block, ext) => {
+                if expect_type!(condition.eval(runtime, scope)?, Boolean) {
+                    block.eval(runtime, scope)?;
+                    if let Some(ext) = ext {
+                        match &**ext {
+                            // else statements:
+                            Node::Block(ext_block) => {
+                                ext_block.eval(runtime, scope)?;
+                            }
+                            // elif statements:
+                            Node::If(..) => {
+                                ext.eval(runtime, scope)?;
+                            }
+                            _ => unreachable!()
+                        };
+                    }
+                }
+
+                Ok(Object::Null)
+            }
+
+            Self::For(ident, sequence, block) => {
+                let sequence = expect_type!(sequence.eval(runtime, scope)?, List);
+                for object in sequence.iter() {
+                    // TODO reuse scope instead
+                    let mut scope = Scope::new(runtime, Some(scope));
+                    scope.define(ident, object.clone());
+                    block.eval(runtime, &mut scope)?;
+                }
+                Ok(Object::Null)
+            }
+
+            Self::While(expr, block) => {
+                while expect_type!(expr.eval(runtime, scope)?, Boolean) {
+                    // TODO reuse scope instead
+                    let mut scope = Scope::new(runtime, Some(scope));
+                    block.eval(runtime, &mut scope)?;
+                }
+                Ok(Object::Null)
+            }
         }
     }
 }
@@ -249,69 +304,6 @@ impl Evaluate for Block {
         }
 
         Ok(return_value)
-    }
-}
-
-impl Evaluate for Statement {
-    fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-        match self {
-            Self::DefineVariable(name, value) => {
-                let value = value.eval(runtime, scope)?;
-                scope.define(name, value);
-                Ok(Object::Null)
-            }
-            Self::DefineFunction(name, args, block) => {
-                // TODO replace cloning with pointer or something?
-                scope.define(name, Object::Function {
-                    func: Box::new(Function::Block(block.clone())),
-                    args: args.clone(),
-                });
-                Ok(Object::Null)
-            }
-            Self::If(condition, block, ext) => {
-                if expect_type!(condition.eval(runtime, scope)?, Boolean) {
-                    block.eval(runtime, scope)?;
-                    if let Some(ext) = ext {
-                        match &**ext {
-                            // else statements:
-                            Node::Block(ext_block) => {
-                                ext_block.eval(runtime, scope)?;
-                            }
-                            // elif statements:
-                            Node::Statement(ext_statement) => {
-                                match ext_statement {
-                                    Statement::If(..) => {
-                                        ext_statement.eval(runtime, scope)?;
-                                    }
-                                    _ => unreachable!()
-                                }
-                            }
-                            _ => unreachable!()
-                        };
-                    }
-                }
-
-                Ok(Object::Null)
-            }
-            Self::For(ident, sequence, block) => {
-                let sequence = expect_type!(sequence.eval(runtime, scope)?, List);
-                for object in sequence.iter() {
-                    // TODO reuse scope instead
-                    let mut scope = Scope::new(runtime, Some(scope));
-                    scope.define(ident, object.clone());
-                    block.eval(runtime, &mut scope)?;
-                }
-                Ok(Object::Null)
-            }
-            Self::While(expr, block) => {
-                while expect_type!(expr.eval(runtime, scope)?, Boolean) {
-                    // TODO reuse scope instead
-                    let mut scope = Scope::new(runtime, Some(scope));
-                    block.eval(runtime, &mut scope)?;
-                }
-                Ok(Object::Null)
-            }
-        }
     }
 }
 
