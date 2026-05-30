@@ -33,11 +33,6 @@ pub struct BinaryOp {
 }
 
 #[derive(Debug, Clone)]
-pub enum Statement {
-    // TODO replace String with Box<str>
-}
-
-#[derive(Debug, Clone)]
 pub struct Block {
     pub nodes: Vec<Node>,
     pub return_last: bool,
