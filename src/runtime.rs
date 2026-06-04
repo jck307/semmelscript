@@ -44,8 +44,6 @@ pub struct Scope {
     names: HashMap<Box<str>, usize>,
 }
 
-unsafe impl Send for Scope {}
-
 #[derive(Debug, Clone)]
 pub enum Function {
     Pointer(fn(&mut Runtime, &mut Scope) -> Result<Object>),
@@ -82,6 +80,9 @@ pub enum Object {
 pub union HeapObject {
     pub(crate) vec: ManuallyDrop<Vec<Object>>,
 }
+
+unsafe impl Send for Scope {}
+unsafe impl Send for HeapObject {}
 
 impl Object {
     pub fn get_type(&self) -> Type {
