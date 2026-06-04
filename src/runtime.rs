@@ -99,6 +99,12 @@ impl Object {
     }
 }
 
+pub fn as_list(heap_obj: &*mut HeapObject) -> &Vec<Object> {
+    unsafe {
+        &(**heap_obj).vec
+    }
+}
+
 impl Runtime {
     pub fn new() -> Self {
         Self {

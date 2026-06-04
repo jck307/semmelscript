@@ -42,6 +42,7 @@ pub fn init(scope: &mut Scope) {
         call(cmd);
         source(path);
         tostring(value);
+        len(arr);
         get(arr, index);
         set(arr, index, value);
         drop(var);

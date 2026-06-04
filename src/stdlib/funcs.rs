@@ -75,6 +75,12 @@ pub fn set(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     Ok(Object::Null)
 }
 
+pub fn len(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+    unsafe {
+        Ok(Object::Integer((*get!(scope, arr, List)).vec.len().try_into().unwrap()))
+    }
+}
+
 pub fn drop(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     use std::mem::ManuallyDrop as ManDrop;
     let heap_obj: *const HeapObject = match scope.get("var")? {

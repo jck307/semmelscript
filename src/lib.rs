@@ -13,18 +13,10 @@ use {
     parser::Parser,
 };
 
-pub use runtime::{
-    Scope,
-    Runtime,
-    Evaluate,
-    Object,
-    Type,
-    call_function,
-    set_runtime_pointer,
-};
+pub use runtime::*;
 
-pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync + 'static>>;
-
+pub type Result<T> = std::result::Result<T,
+    Box<dyn std::error::Error + Send + Sync + 'static>>;
 pub type Integer = i32;
 pub type Float = f32;
 pub type Pointer = u16;
