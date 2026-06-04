@@ -1,6 +1,7 @@
 use crate::*;
 use crate::node::*;
 use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 
 // TODO replace some 'name' with 'ident'
 
@@ -32,6 +33,7 @@ macro_rules! expect_type {
 
 pub struct Runtime {
     pub globals: Scope,
+    pub(crate) heap: Vec<HeapObject>,
 }
 
 #[derive(Debug, Clone)]
@@ -65,7 +67,6 @@ pub enum Type {
 #[derive(Debug, Clone)]
 pub enum Object {
     Null,
-    Pointer(*mut Object),
     String(String),
     Integer(Integer),
     Float(Float),
@@ -75,7 +76,11 @@ pub enum Object {
         args: Vec<Box<str>>,
         scope: *mut Scope,
     },
-    List(Vec<Object>),
+    List(*mut HeapObject),
+}
+
+pub union HeapObject {
+    pub(crate) vec: ManuallyDrop<Vec<Object>>,
 }
 
 impl Object {
@@ -83,7 +88,6 @@ impl Object {
         use Type::*;
         match self {
             Self::Null => Null,
-            Self::Pointer(_) => Pointer,
             Self::String(_) => String,
             Self::Integer(_) => Integer,
             Self::Float(_) => Float,
@@ -98,7 +102,17 @@ impl Runtime {
     pub fn new() -> Self {
         Self {
             globals: Scope::new(std::ptr::null_mut(), None),
+            heap: Vec::new(),
         }
+    }
+
+    fn alloc_list(&mut self, vec: Vec<Object>) -> Object {
+        let heap_obj = HeapObject {
+            vec: ManuallyDrop::new(vec)
+        };
+        let index = self.heap.len();
+        self.heap.push(heap_obj);
+        Object::List(&mut self.heap[index])
     }
 }
 
@@ -234,7 +248,7 @@ impl Evaluate for Node {
             Self::List(list) => {
                 let result: Result<Vec<Object>> = list.iter()
                     .map(|n| n.eval(runtime, scope)).collect();
-                Ok(Object::List(result?))
+                Ok(runtime.alloc_list(result?))
             }
 
             Self::DefineVariable(name, value) => {
@@ -271,17 +285,18 @@ impl Evaluate for Node {
                         };
                     }
                 }
-
                 Ok(Object::Null)
             }
 
             Self::For(ident, sequence, block) => {
                 let sequence = expect_type!(sequence.eval(runtime, scope)?, List);
-                for object in sequence.iter() {
-                    // TODO reuse scope instead
-                    let mut scope = Scope::new(runtime, Some(scope));
-                    scope.define(ident, object.clone());
-                    block.eval(runtime, &mut scope)?;
+                unsafe {
+                    for object in (*sequence).vec.iter() {
+                        // TODO reuse scope instead
+                        let mut scope = Scope::new(runtime, Some(scope));
+                        scope.define(ident, object.clone());
+                        block.eval(runtime, &mut scope)?;
+                    }
                 }
                 Ok(Object::Null)
             }
@@ -437,7 +452,9 @@ impl Evaluate for BinaryOp {
                 if self.op == RangeIncl {
                     b += 1;
                 }
-                Object::List((a..b).map(|i| Object::Integer(i)).collect())
+                runtime.alloc_list(
+                    (a..b).map(|i| Object::Integer(i)).collect()
+                )
             }
 
             Assign => {

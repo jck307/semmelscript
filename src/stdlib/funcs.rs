@@ -12,7 +12,7 @@ pub fn print(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
 }
 
 pub fn source(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-    let path = get!(scope, path, String);
+    let path = get!(scope, path, String).clone();
     let scope: &mut Scope = unsafe { &mut *scope.parent.unwrap() };
     let string = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
@@ -25,9 +25,10 @@ pub fn tostring(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     // TODO use the same formatting as parser::node::Node
     let obj = scope.get("value")?;
     Ok(Object::String(match obj {
-        Object::String(string) => string,
+        Object::String(string) => string.to_string(),
         Object::Integer(integer) => integer.to_string(),
         Object::Float(float) => float.to_string(),
+        Object::List(list) => unsafe { format!("{:?}", *(*list).vec) }
         _ => format!("{obj:?}")
     }))
 }
@@ -55,4 +56,39 @@ pub fn call(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
     }
 
     Ok(Object::String(stdout))
+}
+
+pub fn get(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+    let index: usize = get!(scope, index, Integer).clone().try_into().unwrap();
+    unsafe {
+        let arr = &(*get!(scope, arr, List)).vec;
+        Ok(arr[index].clone())
+    }
+}
+
+pub fn set(_runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+    let index: usize = get!(scope, index, Integer).clone().try_into().unwrap();
+    let value = scope.get("value")?.clone();
+    unsafe {
+        (&mut (*get!(scope, arr, List)).vec)[index] = value;
+    }
+    Ok(Object::Null)
+}
+
+pub fn drop(runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
+    use std::mem::ManuallyDrop as ManDrop;
+    let heap_obj: *const HeapObject = match scope.get("var")? {
+        Object::List(obj) => unsafe {
+            ManDrop::drop(&mut (*obj).vec);
+            obj
+        }
+        _ => { return Ok(Object::Null) }
+    };
+    for (i, obj) in runtime.heap.iter().rev().enumerate() {
+        if heap_obj == &raw const *obj {
+            runtime.heap.remove(i);
+            break
+        }
+    }
+    Ok(Object::Null)
 }

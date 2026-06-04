@@ -1,6 +1,20 @@
-let a = [3, 2, 1];
-let b = 1..4;   // right-exclusive
-let c = 1..=3;  // right-inclusive
-println(tostring(a));
-println(tostring(b));
-println(tostring(c));
+let list1 = [1, 2, 3];
+let list2 = 1..4;   // right-exclusive
+let list3 = 1..=3;  // right-inclusive
+
+println(tostring(list1));
+println(tostring(list2));
+println(tostring(list3));
+
+for i in list1 {
+    println(tostring(i));
+}
+
+let ptr = list1;  // does not clone list1
+set(ptr, 1, 10);  // list1 becomes [1, 10, 3]
+println(tostring(get(list1, 1)));
+
+// free memory
+drop(list1);
+drop(list2);
+drop(list3);
