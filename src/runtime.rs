@@ -1,511 +1,478 @@
-use crate::*;
-use crate::node::*;
-use std::collections::HashMap;
-use std::mem::ManuallyDrop;
+use std::{
+    rc::Rc,
+    any::Any,
+    collections::HashMap,
+};
 
-// TODO replace some 'name' with 'ident'
+// macro_rules! get_arg {
+//     ($stack:ident, $type:ty) => {{
+//         let ptr = $stack.current();
+//         $stack.offset_add(std::mem::size_of::<$type>());
+//         ptr as *mut $type
+//     }};
+//     ($stack:ident, offset $type:ty) => {{
+//         let offset = $stack.current();
+//         let ptr = unsafe {
+//             $stack.get(*offset as usize)
+//         };
+//         $stack.offset_add(8);
+//         ptr as *mut $type
+//     }}
+// }
 
-use quick_error::quick_error;
-
-quick_error! {
-    #[derive(Debug)]
-    pub enum RuntimeError {
-        ExpectedType(typ: Type, found: Type) {}
-        ExpectedArgs(len: usize) {}
-        ExpectedNumber {}
-        NameError(name: Box<str>) {}
-    }
+#[allow(unused_macros)]
+macro_rules! print_bytes {
+    ($value:expr, $type:ty) => {{
+        print!("binary representation of {} with len {}:\n    ", stringify!($type), std::mem::size_of::<$type>());
+        for i in 0..std::mem::size_of::<$type>() {
+            print!("{:0>2X} ", *(&$value as *const $type).cast::<u8>().add(i) as u8);
+        }
+        print!("\n\n");
+    }}
 }
-
-use RuntimeError::*;
 
 #[macro_export]
-macro_rules! expect_type {
-    ($value:expr, $type:ident) => {{
-        use crate::runtime::{Object, Type, RuntimeError};
-        let value = $value;
-        match value {
-            Object::$type(value) => value,
-            _ => { return Err( RuntimeError::ExpectedType(Type::$type, value.get_type()).into()); }
-        }}
-    }
+macro_rules! op {
+    ($self:ident, $type:expr, $op:tt) => {{
+        match $type {
+            Type::U8   => op!(calc $self, U8,   $op),
+            Type::U16  => op!(calc $self, U16,  $op),
+            Type::U32  => op!(calc $self, U32,  $op),
+            Type::U64  => op!(calc $self, U64,  $op),
+            Type::I8   => op!(calc $self, I8,   $op),
+            Type::I16  => op!(calc $self, I16,  $op),
+            Type::I32  => op!(calc $self, I32,  $op),
+            Type::I64  => op!(calc $self, I64,  $op),
+            Type::F32  => op!(calc $self, F32,  $op),
+            Type::F64  => op!(calc $self, F64,  $op),
+            Type::Bool => op!(calc $self, Bool, $op),
+            _ => panic!()
+        }
+    }};
+
+    // assume type Bool will never be used with non-binary operators
+    (calc $_:ident, Bool, +)  => {{ panic!() }};
+    (calc $_:ident, Bool, -)  => {{ panic!() }};
+    (calc $_:ident, Bool, *)  => {{ panic!() }};
+    (calc $_:ident, Bool, /)  => {{ panic!() }};
+    (calc $_:ident, Bool, %)  => {{ panic!() }};
+
+    // set $result to Bool for binary operators
+    (calc $self:ident, $type:ident, ==) => {{ op!($self, $type, Bool, ==) }};
+
+    // set $result to $type for everything else
+    (calc $self:ident, $type:ident, $op:tt) => {{ op!($self, $type, $type, $op) }};
+
+    ($self:ident, $type:ident, $result:ident, $op:tt) => {{
+        unsafe {
+            let b = $self.stack.pop().$type;
+            let a = $self.stack.pop().$type;
+            $self.stack.push(Value { $result: a $op b });
+        }
+    }};
+
+    ($self:ident, $type:ident, $result:ident, $op:tt, $const:expr) => {{
+        unsafe {
+            let a = $self.stack.pop().$type;
+            $self.stack.push(Value { $result: a $op $const });
+        }
+    }};
+
+    // (calc $self:ident, $type:ident, +=) => {{ op!(calc_assign $self, $type, +=) }};
+
+    // (calc_assign $self:ident, $type:ident, $op:tt) => {{
+    //     unsafe {
+    //         let b = $self.pop().0.$type;
+    //         $self.peek_mut().0.$type $op b;
+    //     }
+    // }};
 }
 
-pub struct Runtime {
-    pub globals: Scope,
-    pub(crate) heap: Vec<HeapObject>,
-}
+macro_rules! define_for_types {
+    ($($value:ident: $type:ty,)*) => {
+        #[allow(dead_code)]
+        #[derive(Clone, Copy, Debug)]
+        #[repr(u8)]
+        enum Type {
+             $( $value, )*
+        }
 
-#[derive(Debug, Clone)]
-pub struct Scope {
-    pub(crate) parent: Option<*mut Scope>,
-    runtime: *mut Runtime,
-    stack: Vec<Object>,
-    names: HashMap<Box<str>, usize>,
-}
-
-#[derive(Debug, Clone)]
-pub enum Function {
-    Pointer(fn(&mut Runtime, &mut Scope) -> Result<Object>),
-    Block(Block),
-}
-
-#[derive(Debug)]
-pub enum Type {
-    Null,
-    Pointer,
-    String,
-    Integer,
-    Float,
-    Boolean,
-    Function,
-    List,
-}
-
-#[derive(Debug, Clone)]
-pub enum Object {
-    Null,
-    String(String),
-    Integer(Integer),
-    Float(Float),
-    Boolean(bool),
-    Function {
-        func: Box<Function>,
-        args: Vec<Box<str>>,
-        scope: *mut Scope,
-    },
-    List(*mut HeapObject),
-}
-
-pub union HeapObject {
-    pub(crate) vec: ManuallyDrop<Vec<Object>>,
-}
-
-unsafe impl Send for Scope {}
-unsafe impl Send for HeapObject {}
-
-impl Object {
-    pub fn get_type(&self) -> Type {
-        use Type::*;
-        match self {
-            Self::Null => Null,
-            Self::String(_) => String,
-            Self::Integer(_) => Integer,
-            Self::Float(_) => Float,
-            Self::Boolean(_) => Boolean,
-            Self::Function { .. } => Function,
-            Self::List(_) => List,
+        #[allow(non_snake_case)]
+        #[derive(Clone, Copy)]
+        union Value {
+            $( $value: $type, )*
+            Type: Type,
         }
     }
 }
 
-pub fn as_list(heap_obj: &*mut HeapObject) -> &Vec<Object> {
-    unsafe {
-        &(**heap_obj).vec
+define_for_types! {
+    Null: (),
+    U8:  u8,
+    U16: u16,
+    U32: u32,
+    U64: u64,
+    I8:  i8,
+    I16: i16,
+    I32: i32,
+    I64: i64,
+    F32: f32,
+    F64: f64,
+    Bool: bool,
+    Str: *mut String,
+}
+
+#[allow(dead_code)]
+#[derive(Debug)]
+enum Instruction {
+    Debug,
+    Exit,
+    Call(Rc<Function>),
+    CallInternal(fn(&mut Runtime)),
+    Goto(usize),
+    GotoConditional(usize),
+    LoopUpdate(u64, u64, usize),
+    Pop,
+    Dup,
+    DupFrom(usize),
+    Swap(usize),
+    MoveTo(usize),
+    RotateLeft(usize),
+    RotateRight(usize),
+    PushNumber8(Type, u8),
+    PushNumber16(Type, u16),
+    PushNumber32(Type, u32),
+    PushNumber64(Type, u64),
+    PushString(*mut String),
+    PushType(Type),
+    Add(Type),
+    Sub(Type),
+    Mul(Type),
+    Div(Type),
+    Mod(Type),
+    Equals(Type),
+    And,
+    Or,
+}
+
+use Instruction::*;
+
+type Function = [Instruction];
+
+// const INITIAL_STACK_SIZE: usize = 256;
+const STACK_SIZE: usize = 8;
+
+struct Stack {
+    stack: Box<[Value; STACK_SIZE]>,
+    next_stack_id: usize,
+}
+
+struct Runtime {
+    stack: Stack,
+    heap: HashMap<usize, Box<dyn Any>>,
+    next_heap_id: usize,
+}
+
+impl Stack {
+    fn new() -> Self {
+        Self {
+            // stack: Vec::with_capacity(INITIAL_STACK_SIZE),
+            stack: Box::new([Value { Null: () }; STACK_SIZE]),
+            next_stack_id: 0,
+        }
+    }
+
+    fn push(&mut self, value: Value) {
+        self.stack[self.next_stack_id] = value;
+        self.next_stack_id += 1;
+    }
+
+    // fn replace(&mut self, ty: Type, value: Value) {
+    //     let last_id = self.last_id();
+    //     self.stack[last_id] = StackItem::new(value, ty);
+    // }
+
+    fn pop(&mut self) -> Value {
+        self.next_stack_id = self.next_stack_id.saturating_sub(1);
+        self.stack[self.next_stack_id]
+    }
+
+    fn peek(&self) -> &Value {
+        &self.stack[self.last_id()]
+    }
+
+    fn peek_mut(&mut self) -> &mut Value {
+        let last_id = self.last_id();
+        &mut self.stack[last_id]
+    }
+
+    fn dup(&mut self, id: usize) {
+        unsafe {
+            std::ptr::copy(&self.stack[id], &mut self.stack[self.next_stack_id], 1);
+            self.next_stack_id += 1;
+        }
+    }
+
+    fn swap(&mut self, id: usize) {
+        let last_id = self.last_id();
+        self.stack.swap(id, last_id);
+    }
+
+    fn move_to(&mut self, id: usize) {
+        self.next_stack_id -= 1;
+        self.stack[id] = self.stack[self.next_stack_id];
+    }
+
+    fn len(&self) -> usize {
+        self.next_stack_id
+    }
+
+    fn last_id(&self) -> usize {
+        self.next_stack_id-1
     }
 }
 
 impl Runtime {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
-            globals: Scope::new(std::ptr::null_mut(), None),
-            heap: Vec::new(),
+            stack: Stack::new(),
+            heap: HashMap::new(),
+            next_heap_id: 0,
         }
     }
 
-    fn alloc_list(&mut self, vec: Vec<Object>) -> Object {
-        let heap_obj = HeapObject {
-            vec: ManuallyDrop::new(vec)
+    fn heap_add(&mut self, b: Box<dyn Any>) -> *mut u8 {
+        let id = self.next_heap_id;
+        self.heap.insert(id, b);
+        self.next_heap_id += 1;
+        Box::as_mut_ptr(&mut self.heap.get_mut(&id).unwrap()) as *mut u8
+    }
+
+    fn call(&mut self, func: Rc<Function>) {
+        let mut i = 0;
+        while i < (*func).len() {
+            let instruction = &func[i];
+            // eprintln!("exec instr {i}: {instruction:?}");
+            i += 1;
+            match instruction {
+                Debug => debug_hexdump(self),
+                Exit => { break }
+                Call(func2) => self.call(func2.clone()),
+                CallInternal(internal_func) => internal_func(self),
+                Pop => { self.stack.pop(); }
+                Dup => self.stack.dup(self.stack.last_id()),
+                Swap(id) => self.stack.swap(*id),
+                DupFrom(id) => self.stack.dup(*id),
+                MoveTo(id) => self.stack.move_to(*id),
+                RotateLeft(count) => {
+                    let len = self.stack.len();
+                    self.stack.stack[len-count..len].rotate_left(1);
+                }
+                RotateRight(count) => {
+                    let len = self.stack.len();
+                    self.stack.stack[len-count..len].rotate_right(1);
+                }
+                PushNumber8(ty, u_8) => {
+                    match ty {
+                        Type::U8 => self.stack.push(Value { U8: *u_8 }),
+                        Type::I8 => self.stack.push(Value { I8: u8::cast_signed(*u_8) }),
+                        _ => panic!()
+                    }
+                }
+                PushNumber16(ty, u_16) => {
+                    match ty {
+                        Type::U16 => self.stack.push(Value { U16: *u_16 }),
+                        Type::I16 => self.stack.push(Value { I16: u16::cast_signed(*u_16) }),
+                        _ => panic!()
+                    }
+                }
+                PushNumber32(ty, u_32) => {
+                    match ty {
+                        Type::U32 => self.stack.push(Value { U32: *u_32 }),
+                        Type::I32 => self.stack.push(Value { I32: u32::cast_signed(*u_32) }),
+                        Type::F32 => self.stack.push(Value { F32: f32::from_bits(*u_32) }),
+                        _ => panic!()
+                    }
+                }
+                PushNumber64(ty, u_64) => {
+                    match ty {
+                        Type::U64 => self.stack.push(Value { U64: *u_64 }),
+                        Type::I64 => self.stack.push(Value { I64: u64::cast_signed(*u_64) }),
+                        Type::F64 => self.stack.push(Value { F64: f64::from_bits(*u_64) }),
+                        _ => panic!()
+                    }
+                }
+                PushString(string) => self.stack.push(Value { Str: string.clone() }),
+                PushType(ty) => self.stack.push(Value { Type: *ty }),
+                Goto(index) => { i = *index }
+                GotoConditional(index) => {
+                    unsafe {
+                        if self.stack.pop().Bool == false {
+                            i = *index;
+                        }
+                    }
+                }
+                LoopUpdate(max, step, jump_index) => {
+                    unsafe {
+                        self.stack.peek_mut().U64 += step;
+                        if self.stack.peek().U64 != *max {
+                            i = *jump_index;
+                        }
+                    }
+                }
+                Add(ty) => op!(self, ty, +),
+                Sub(ty) => op!(self, ty, -),
+                Mul(ty) => op!(self, ty, *),
+                Div(ty) => op!(self, ty, /),
+                Mod(ty) => op!(self, ty, %),
+                Equals(ty) => op!(self, ty, ==),
+                And => op!(self, Bool, Bool, &&),
+                Or => op!(self, Bool, Bool, ||),
+            }
+        }
+    }
+}
+
+#[allow(unused)]
+fn debug_hexdump(runtime: &mut Runtime) {
+    println!("current stack:");
+    for (i, value) in runtime.stack.stack[..runtime.stack.next_stack_id].iter().enumerate() {
+        print!("    {i}: ");
+        for i in 0..std::mem::size_of::<Value>() {
+            unsafe {
+                print!("{:0>2X} ", *(value as *const Value).cast::<u8>().add(i) as u8);
+            }
+        }
+        println!();
+    }
+}
+
+fn internal_tostring(runtime: &mut Runtime) {
+    unsafe {
+        let ty = runtime.stack.pop().Type;
+        let num = runtime.stack.peek();
+        let string = match ty {
+            Type::U16 => num.U16.to_string(),
+            Type::U32 => num.U32.to_string(),
+            Type::U64 => num.U64.to_string(),
+            _ => todo!()
         };
-        let index = self.heap.len();
-        self.heap.push(heap_obj);
-        Object::List(&mut self.heap[index])
+        let b = Box::new(string);
+        let ptr = runtime.heap_add(b);
+        // let ptr = (&mut runtime.stack.heap[id]) as *mut String;
+        runtime.stack.push(Value { Str: ptr as *mut String });
     }
 }
 
-pub fn set_runtime_pointer(runtime: &mut Runtime, scope: &mut Scope) {
-    runtime.globals.runtime = runtime;
-    scope.runtime = runtime;
-}
-
-impl Scope {
-    pub fn new(runtime: *mut Runtime, parent: Option<*mut Scope>) -> Self {
-        Self {
-            runtime,
-            parent,
-            stack: Vec::new(),
-            names: HashMap::new(),
-        }
-    }
-
-    fn add_object(&mut self, object: Object) -> usize {
-        self.stack.push(object);
-        self.stack.len() - 1
-    }
-
-    pub fn define(&mut self, name: &str, object: Object) {
-        // assert!(!self.names.contains_key(name)); // TODO fix
-        let id = self.add_object(object);
-        self.names.insert(name.into(), id);
-    }
-
-    pub fn update(&mut self, name: &str, object: Object) -> Result<()> {
-        if let Some(id) = self.names.get(name) {
-            self.stack[*id] = object;
-            Ok(())
-
-        } else if let Some(parent) = self.parent {
-            unsafe {
-                (*parent).update(name, object)
-            }
-
-        } else {
-            Err(NameError(name.into()).into())
-        }
-    }
-
-    pub fn get(&mut self, name: &str) -> Result<Object> {
-        if let Some(id) = self.names.get(name) {
-            Ok(self.stack[*id].clone())
-        } else {
-            if let Some(parent) = self.parent {
-                unsafe {
-                    (*parent).get(name)
-                }
-            } else {
-                unsafe {
-                    if !(*self.runtime).globals.runtime.is_null() {
-                        if let Some(id) = (*self.runtime).globals.names.get(name) {
-                            return Ok((&(*self.runtime).globals.stack)[*id].clone())
-                        }
-                    }
-                }
-                Err(NameError(name.into()).into())
-            }
-        }
-    }
-
-    fn root(&mut self) -> *mut Self {
-        if let Some(parent) = self.parent {
-            unsafe {
-                (*parent).root()
-            }
-        } else {
-            self
-        }
+fn internal_print(runtime: &mut Runtime) {
+    unsafe {
+        let string = runtime.stack.peek().Str;
+        // print_bytes!(*string, String);
+        println!("{}", *string);
     }
 }
 
-pub fn call_function(runtime: &mut Runtime, object: Object, mut args: Vec<Object>) -> Result<Object> {
-    match object {
-        Object::Function { func, args: arg_names, scope } => {
-            if args.len() != arg_names.len() {
-                return Err(ExpectedArgs(arg_names.len()).into());
-            }
-
-            let mut func_scope = Scope::new(runtime, Some(unsafe { (*scope).root() }));
-            for arg_name in arg_names.iter() {
-                func_scope.define(arg_name, args.remove(0));
-            }
-
-            match *func {
-                Function::Pointer(ptr) => {
-                    ptr(runtime, &mut func_scope)
-                }
-                Function::Block(block) => {
-                    block.eval(runtime, &mut func_scope)
-                }
-            }
-        }
-        _ => Err(ExpectedType(Type::Function, object.get_type()).into())
+#[allow(unused)]
+fn internal_str_append(runtime: &mut Runtime) {
+    unsafe {
+        let src = runtime.stack.pop().Str as *mut String;
+        let rhs = runtime.stack.pop().Str as *mut String;
+        // print_bytes!(*rhs, String);
+        // print_bytes!(*src, String);
+        (*src).push_str(&*rhs);
     }
 }
 
-pub trait Evaluate {
-    // evaluates the value of a node
-    fn eval(&self, _runtime: &mut Runtime, _scope: &mut Scope) -> Result<Object> {
-        // TODO remove
-        unimplemented!()
-    }
+#[test]
+fn simple() {
+    println!();
+    let mut runtime = Runtime::new();
+    runtime.call(Rc::new([
+        PushNumber16(Type::U16, 123),
+        PushType(Type::U16),
+        CallInternal(internal_tostring),
+        RotateLeft(2),
+        Pop,
+        PushString(&mut "hejsan".to_string()),
+        Debug,
+        CallInternal(internal_print),
+        Pop,
+        CallInternal(internal_print),
+        Pop,
+    ]));
+    assert_eq!(runtime.stack.len(), 0);
 }
 
-impl Evaluate for Node {
-    fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-        match self {
-            Self::ParenArgs(root, arg_nodes) => {
-                let object = root.eval(runtime, scope)?;
-                let mut args = Vec::new();
-                for arg in arg_nodes.iter() {
-                    args.push(arg.eval(runtime, scope)?);
-                }
-                call_function(runtime, object, args)
-            }
-
-            Self::BinaryOp(node) => node.eval(runtime, scope), 
-
-            Self::Block(node) => {
-                node.eval(runtime, &mut scope.clone())
-            }
-
-            Self::Identifier(ident) => scope.get(ident),
-            Self::String(string) => Ok(Object::String(string.to_string())),
-            Self::Integer(integer) => Ok(Object::Integer(*integer)),
-            Self::Float(float) => Ok(Object::Float(*float)),
-            Self::Boolean(boolean) => Ok(Object::Boolean(*boolean)),
-            Self::List(list) => {
-                let result: Result<Vec<Object>> = list.iter()
-                    .map(|n| n.eval(runtime, scope)).collect();
-                Ok(runtime.alloc_list(result?))
-            }
-
-            Self::DefineVariable(name, value) => {
-                let value = value.eval(runtime, scope)?;
-                scope.define(name, value);
-                Ok(Object::Null)
-            }
-
-            Self::DefineFunction(name, args, block) => {
-                // TODO replace cloning with pointer or something?
-                let func = Object::Function {
-                    func: Box::new(Function::Block(block.clone())),
-                    args: args.clone(),
-                    scope,
-                };
-                scope.define(name, func);
-                Ok(Object::Null)
-            }
-
-            Self::If(condition, block, ext) => {
-                if expect_type!(condition.eval(runtime, scope)?, Boolean) {
-                    block.eval(runtime, scope)?;
-                    if let Some(ext) = ext {
-                        match &**ext {
-                            // else statements:
-                            Node::Block(ext_block) => {
-                                ext_block.eval(runtime, scope)?;
-                            }
-                            // elif statements:
-                            Node::If(..) => {
-                                ext.eval(runtime, scope)?;
-                            }
-                            _ => unreachable!()
-                        };
-                    }
-                }
-                Ok(Object::Null)
-            }
-
-            Self::For(ident, sequence, block) => {
-                let sequence = expect_type!(sequence.eval(runtime, scope)?, List);
-                unsafe {
-                    for object in (*sequence).vec.iter() {
-                        // TODO reuse scope instead
-                        let mut scope = Scope::new(runtime, Some(scope));
-                        scope.define(ident, object.clone());
-                        block.eval(runtime, &mut scope)?;
-                    }
-                }
-                Ok(Object::Null)
-            }
-
-            Self::While(expr, block) => {
-                while expect_type!(expr.eval(runtime, scope)?, Boolean) {
-                    // TODO reuse scope instead
-                    let mut scope = Scope::new(runtime, Some(scope));
-                    block.eval(runtime, &mut scope)?;
-                }
-                Ok(Object::Null)
-            }
-        }
-    }
+#[test]
+fn exclaim_513() {
+    println!();
+    let mut runtime = Runtime::new();
+    runtime.call(Rc::new([
+        PushString(&mut "!!!".to_string()),
+        PushNumber16(Type::U16, 256),
+        PushNumber16(Type::U16, 257),
+        Add(Type::U16),
+        PushType(Type::U16),
+        CallInternal(internal_tostring),
+        DupFrom(0),
+        DupFrom(2),
+        CallInternal(internal_str_append),
+        CallInternal(internal_print),
+        Debug,
+    ]));
 }
 
-impl Evaluate for Block {
-    fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-        let mut last_value = Object::Null;
-
-        for node in &self.nodes {
-            last_value = node.eval(runtime, scope)?;
-        }
-
-        if self.return_last {
-            Ok(last_value)
-        } else {
-            Ok(Object::Null)
-        }
-    }
+#[allow(unused)]
+fn test_fib() {
+    println!();
+    let mut runtime = Runtime::new();
+    runtime.call(Rc::new([
+        PushNumber64(Type::U64, 0),
+        PushNumber64(Type::U64, 1),
+        PushNumber64(Type::U64, 0),
+        DupFrom(0),
+        DupFrom(1),
+        Add(Type::U64),
+        Swap(1),
+        Swap(0),
+        Pop,
+        LoopUpdate(92, 1, 3),
+        Pop,
+        PushType(Type::U64),
+        CallInternal(internal_tostring),
+        CallInternal(internal_print),
+    ]));
 }
 
-macro_rules! calculate {
-    ($self:ident, $type:ident, $a:ident, $b:ident, $pow:ident) => {{
-        match $self.op {
-            Add | Sub | Mul | Div | Pow | Mod => {
-                Object::$type(match $self.op {
-                    Add => $a + $b,
-                    Sub => $a - $b,
-                    Mul => $a * $b,
-                    Div => $a / $b,
-                    Pow => $a.$pow($b.try_into()
-                        .expect("invalid exponent type")),
-                    Mod => $a % $b,
-                    _ => unreachable!()
-                })
-            }
-            Equal | Inequal | Less | LessEqual | Greater | GreaterEqual => {
-                Object::Boolean(match $self.op {
-                    Equal => $a == $b,
-                    Inequal => $a != $b,
-                    Less => $a < $b,
-                    LessEqual => $a <= $b,
-                    Greater => $a >= $b,
-                    GreaterEqual => $a >= $b,
-                    _ => unreachable!()
-                })
-            }
-            _ => unreachable!()
-        }
-    }}
+#[allow(unused)]
+fn test_fib_mod() {
+    let mut runtime = Runtime::new();
+    runtime.call(Rc::new([
+        PushNumber64(Type::U64, 0),
+        PushNumber64(Type::U64, 1),
+        PushNumber64(Type::U64, 0),
+        DupFrom(0),
+        DupFrom(1),
+        Add(Type::U64),
+        PushNumber64(Type::U64, 1_000_000),
+        Mod(Type::U64),
+        Swap(1),
+        Swap(0),
+        Pop,
+        LoopUpdate(4_000_000, 1, 3),
+        Pop,
+        PushType(Type::U64),
+        CallInternal(internal_tostring),
+        CallInternal(internal_print),
+    ]));
 }
 
-macro_rules! calculate_opassign {
-    ($self:ident, $type:ident, $a:ident, $b:ident, $pow:ident) => {{
-        match $self.op {
-            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => {
-                Object::$type(match $self.op {
-                    AddAssign => $a + $b,
-                    SubAssign => $a - $b,
-                    MulAssign => $a * $b,
-                    DivAssign => $a / $b,
-                    PowAssign => $a.$pow($b.try_into()
-                        .expect("invalid exponent type")),
-                    ModAssign => $a % $b,
-                    _ => unreachable!()
-                })
-            }
-            _ => unreachable!()
-        }
-    }}
+#[test]
+fn fib() {
+    test_fib();
 }
 
-impl Evaluate for BinaryOp {
-    fn eval(&self, runtime: &mut Runtime, scope: &mut Scope) -> Result<Object> {
-        use crate::token::Operator::*;
-
-        Ok(match self.op {
-            Add | Sub | Mul | Div | Pow | Mod |
-            Equal | Inequal | Less | LessEqual | Greater | GreaterEqual => {
-                let a = self.a.eval(runtime, scope)?;
-                let b = self.b.eval(runtime, scope)?;
-
-                match self.op {
-                    Add => {
-                        // string concatenation
-                        match a {
-                            Object::String(a) => {
-                                let b = expect_type!(b, String);
-                                return Ok(Object::String(a + &b))
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-
-                match a {
-                    Object::Integer(a) => {
-                        match b {
-                            Object::Integer(b) => {
-                                return Ok(calculate!(self, Integer, a, b, pow))
-                            }
-                            Object::Float(b) => {
-                                let a = a as f32;
-                                return Ok(calculate!(self, Float, a, b, powf))
-                            }
-                            _ => {}
-                        }
-                    }
-                    Object::Float(a) => {
-                        match b {
-                            Object::Integer(b) => {
-                                let b = b as f32;
-                                return Ok(calculate!(self, Float, a, b, powf))
-                            }
-                            Object::Float(b) => {
-                                return Ok(calculate!(self, Float, a, b, powf))
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
-                }
-
-                return Err(ExpectedNumber.into())
-            }
-
-            And | Or => {
-                let a = expect_type!(self.a.eval(runtime, scope)?, Boolean);
-                let b = expect_type!(self.b.eval(runtime, scope)?, Boolean);
-
-                Object::Boolean(match self.op {
-                    And => a && b,
-                    Or => a || b,
-                    _ => unreachable!()
-                })
-            }
-
-            RangeExcl | RangeIncl => {
-                let a = expect_type!(self.a.eval(runtime, scope)?, Integer);
-                let mut b = expect_type!(self.b.eval(runtime, scope)?, Integer);
-                if self.op == RangeIncl {
-                    b += 1;
-                }
-                runtime.alloc_list(
-                    (a..b).map(|i| Object::Integer(i)).collect()
-                )
-            }
-
-            Assign => {
-                let Node::Identifier(ref name) = self.a else { unreachable!() };
-                let value = self.b.eval(runtime, scope)?;
-                scope.update(&name, value)?;
-                Object::Null
-            }
-
-            AddAssign | SubAssign | MulAssign | DivAssign | PowAssign | ModAssign => {
-                let Node::Identifier(ref name) = self.a else { unreachable!() };
-                let a = self.a.eval(runtime, scope)?;
-                let b = self.b.eval(runtime, scope)?;
-                scope.update(name, match a {
-                    Object::Integer(a) => {
-                        match b {
-                            Object::Integer(b) => {
-                                calculate_opassign!(self, Integer, a, b, pow)
-                            }
-                            Object::Float(b) => {
-                                let a = a as f32;
-                                calculate_opassign!(self, Float, a, b, powf)
-                            }
-                            _ => { return Err(ExpectedNumber.into()) }
-                        }
-                    }
-                    Object::Float(a) => {
-                        match b {
-                            Object::Integer(b) => {
-                                let b = b as f32;
-                                calculate_opassign!(self, Float, a, b, powf)
-                            }
-                            Object::Float(b) => {
-                                calculate_opassign!(self, Float, a, b, powf)
-                            }
-                            _ => { return Err(ExpectedNumber.into()) }
-                        }
-                    }
-                    _ => { return Err(ExpectedNumber.into()) }
-                })?;
-                Object::Null
-            }
-
-            _ => unreachable!()
-        })
-    }
+#[test]
+fn mod_fib() {
+    test_fib_mod();
 }

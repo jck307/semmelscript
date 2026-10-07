@@ -8,9 +8,9 @@ fn run() -> Result<()> {
     let string = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
 
-    let block = parse(string)?;
-    let (mut runtime, mut scope) = setup!();
-    block.eval(&mut runtime, &mut scope)?;
+    let _ = parse(string)?;
+    // let (mut runtime, mut scope) = setup!();
+    // block.eval(&mut runtime, &mut scope)?;
 
     Ok(())
 }

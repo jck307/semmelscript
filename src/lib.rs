@@ -13,7 +13,7 @@ use {
     parser::Parser,
 };
 
-pub use runtime::*;
+// pub use runtime::*;
 
 pub type Result<T> = std::result::Result<T,
     Box<dyn std::error::Error + Send + Sync + 'static>>;
@@ -21,16 +21,16 @@ pub type Integer = i32;
 pub type Float = f32;
 pub type Pointer = u16;
 
-#[macro_export]
-macro_rules! setup {
-    () => {{
-        let mut runtime = semmel::Runtime::new();
-        let mut scope = semmel::Scope::new(&mut runtime, None);
-        semmel::set_runtime_pointer(&mut runtime, &mut scope);
-        semmel::stdlib::init(&mut runtime.globals);
-        (runtime, scope)
-    }}
-}
+// #[macro_export]
+// macro_rules! setup {
+//     () => {{
+//         let mut runtime = semmel::Runtime::new();
+//         let mut scope = semmel::Scope::new(&mut runtime, None);
+//         semmel::set_runtime_pointer(&mut runtime, &mut scope);
+//         semmel::stdlib::init(&mut runtime.globals);
+//         (runtime, scope)
+//     }}
+// }
 
 pub fn parse(string: String) -> Result<node::Block> {
     let debug = if let Ok(debug) = std::env::var("SEMMEL_DEBUG")

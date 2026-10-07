@@ -1,50 +1,50 @@
-use crate::*;
-use crate::runtime::*;
+// use crate::*;
+// use crate::runtime::*;
 
-mod funcs;
-use funcs::*;
+// mod funcs;
+// use funcs::*;
 
-#[macro_export]
-macro_rules! get {
-    ($scope:expr, $name:ident, $type:ident) => {
-        expect_type!(
-            $scope.get(stringify!($name))
-                .unwrap_or_else(|_| {
-                    panic!(concat!("invalid arg: ", stringify!($name)));
-                }),
-            $type
-        )
-    }
-}
+// #[macro_export]
+// macro_rules! get {
+//     ($scope:expr, $name:ident, $type:ident) => {
+//         expect_type!(
+//             $scope.get(stringify!($name))
+//                 .unwrap_or_else(|_| {
+//                     panic!(concat!("invalid arg: ", stringify!($name)));
+//                 }),
+//             $type
+//         )
+//     }
+// }
 
-use crate::get;
+// use crate::get;
 
-macro_rules! add {
-    ($scope:expr,
-        $($name:ident($($arg:ident$(,)?)*);)*) => {
+// macro_rules! add {
+//     ($scope:expr,
+//         $($name:ident($($arg:ident$(,)?)*);)*) => {
 
-        $(
-            let func = Object::Function {
-                func: Box::new(Function::Pointer($name)),
-                args: vec![$( stringify!($arg).into(), )*],
-                scope: $scope,
-            };
-            $scope.define(stringify!($name), func);
-        )*
-    }
-}
+//         $(
+//             let func = Object::Function {
+//                 func: Box::new(Function::Pointer($name)),
+//                 args: vec![$( stringify!($arg).into(), )*],
+//                 scope: $scope,
+//             };
+//             $scope.define(stringify!($name), func);
+//         )*
+//     }
+// }
 
-pub fn init(scope: &mut Scope) {
-    // this is such a sexy macro
-    add!(scope,
-        println(text);
-        print(text);
-        call(cmd);
-        source(path);
-        tostring(value);
-        len(arr);
-        get(arr, index);
-        set(arr, index, value);
-        drop(var);
-    );
-}
+// pub fn init(scope: &mut Scope) {
+//     this is such a sexy macro
+//     add!(scope,
+//         println(text);
+//         print(text);
+//         call(cmd);
+//         source(path);
+//         tostring(value);
+//         len(arr);
+//         get(arr, index);
+//         set(arr, index, value);
+//         drop(var);
+//     );
+// }
