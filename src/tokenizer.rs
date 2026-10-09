@@ -6,6 +6,13 @@ use crate::{
     syntax::*,
 };
 
+#[derive(PartialEq)]
+enum Comment {
+    None,
+    Line,
+    Block,
+}
+
 pub struct Tokenizer {
     buffer: Buffer<char>,
     row: u16,
@@ -134,16 +141,25 @@ impl Tokenizer {
     pub fn tokenize(&mut self) -> Result<(Vec<Token>, Vec<TokenMeta>)> {
         let mut tokens = Vec::new();
         let mut metas = Vec::new();
-        let mut comment = false;
+        let mut cmnt = Comment::None;
 
         loop {
             if let Ok(ch) = self.buffer.peek().cloned() {
-                if ch == '/' && let Some('/') = self.buffer.get(self.buffer.i+1) {
-                    comment = true;
+                let peekn1 = self.buffer.peekn(1);
+                if cmnt == Comment::None && ch == '/' && let Ok('/') = peekn1 {
+                    cmnt = Comment::Line;
+                    self.buffer.stepn(2);
+
+                } else if cmnt == Comment::None && ch == '/' && let Ok('*') = peekn1 {
+                    cmnt = Comment::Block;
+                    self.buffer.stepn(2);
+
+                } else if cmnt == Comment::Block && ch == '*' && let Ok('/') = peekn1 {
+                    cmnt = Comment::None;
                     self.buffer.stepn(2);
 
                 } else {
-                    if !comment && !ch.is_ascii_whitespace() {
+                    if cmnt == Comment::None && !ch.is_ascii_whitespace() {
                         let meta = TokenMeta {
                             row: self.row,
                             col: self.col,
@@ -160,7 +176,9 @@ impl Tokenizer {
                         if ch == '\n' {
                             self.row += 1;
                             self.col = 0;
-                            comment = false;
+                            if cmnt == Comment::Line {
+                                cmnt = Comment::None;
+                            }
                         } else {
                             self.col += 1;
                         }
