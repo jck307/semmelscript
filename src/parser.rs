@@ -134,12 +134,16 @@ impl Parser {
         let condition = self.read_expression()?;
         let block = self.read_block(true)?;
 
-        let ext: Option<Box<Node>> = if let Ok(Token::Keyword(kw)) = 
-                self.tokens.peek().cloned() {
-            self.tokens.step();
+        let ext: Option<Box<Node>> = if let Ok(Token::Keyword(kw)) = self.tokens.peek() {
             match kw {
-                Keyword::Else => Some(Box::new(self.read_block(true)?)),
-                Keyword::Elif => Some(Box::new(self.read_if()?)),
+                Keyword::Else => {
+                    self.tokens.step();
+                    Some(Box::new(self.read_block(true)?))
+                }
+                Keyword::Elif => {
+                    self.tokens.step();
+                    Some(Box::new(self.read_if()?))
+                }
                 _ => None
             }
         } else {

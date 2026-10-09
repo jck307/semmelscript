@@ -23,6 +23,9 @@ type Integer = i64;
 type Float = f64;
 
 fn parse(string: String) -> Result<node::Block> {
+    // let debug = if let Ok(debug) = std::env::var("SEMMEL_DEBUG")
+    //     { debug == "1" } else { false };
+     
     let buffer = Buffer::new(string.chars().collect());
     let mut tokenizer = Tokenizer::new(buffer);
     let (tokens, metas) = tokenizer.tokenize()?;

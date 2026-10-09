@@ -6,12 +6,30 @@ use crate::{
     stdlib::*,
 };
 
+macro_rules! block {
+    ($codegen:ident, {$($tt:tt)*}) => {
+        let start_stack_index = $codegen.stack_index;
+        let start_depth = $codegen.block_depth;
+        $codegen.block_depth += 1;
+        $($tt)*
+        $codegen.block_depth -= 1;
+        $codegen.push(Instruction::SetStackIndex(start_stack_index));
+        $codegen.stack_index = start_stack_index;
+        for (key, (_, depth)) in $codegen.stack_register.clone() {
+            if start_depth < depth {
+                $codegen.stack_register.remove(&key);
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct CodeGenerator {
     pub instructions: Vec<Instruction>,
     pub builtins: Builtins,
     pub stack_index: usize,
-    pub stack_register: HashMap<Box<str>, usize>,
+    pub stack_register: HashMap<Box<str>, (usize, u16)>,
+    pub block_depth: u16,
     pub labels: HashMap<Box<str>, usize>,
     pub gotos: Vec<(usize, Box<str>)>,
 }
@@ -36,7 +54,7 @@ impl CodeGenerator {
     }
 
     fn register(&mut self, ident: &Box<str>) {
-        self.stack_register.insert(ident.clone(), self.stack_index);
+        self.stack_register.insert(ident.clone(), (self.stack_index, self.block_depth));
         self.stack_index += 1;
     }
 
@@ -45,7 +63,7 @@ impl CodeGenerator {
     }
 
     fn get_ident(&self, ident: &Box<str>) -> usize {
-        *self.stack_register.get(ident).expect(&*format!("invalid identifier: {ident}"))
+        (*self.stack_register.get(ident).expect(&*format!("invalid identifier: {ident}"))).0
     }
 
     fn get_builtin(&self, ident: &Box<str>) -> Builtin {
@@ -80,18 +98,15 @@ impl Generate for Node {
             Block(block) => block.generate(codegen),
             BinaryOp(bin_op) => bin_op.generate(codegen),
             Label(ident) => codegen.register_label(ident),
-            Goto(ident) => {
-                codegen.push_goto(ident);
-            }
+            Goto(ident) => { codegen.push_goto(ident); }
             Integer(integer) => {
                 codegen.push(Instruction::PushNumber64(Type::I64, integer.cast_unsigned()));
             }
             String(string) => {
-                codegen.push(Instruction::PushString(string.to_string()));
-            }
+                codegen.push(Instruction::PushString(string.to_string())); }
+            Boolean(boolean) => { codegen.push(Instruction::PushBool(*boolean)); }
             Identifier(ident) => {
-                codegen.push(Instruction::DupFrom(codegen.get_ident(ident)));
-            }
+                codegen.push(Instruction::DupFrom(codegen.get_ident(ident))); }
             DefineVariable(ident, node) => {
                 codegen.register(ident);
                 node.generate(codegen);
@@ -111,17 +126,21 @@ impl Generate for Node {
             If(condition, block, ext) => {
                 condition.generate(codegen);
                 let placeholder_index = codegen.push(Instruction::Placeholder);
-                block.generate(codegen);
+                block!(codegen, {
+                    block.generate(codegen);
+                });
                 codegen.replace(
                     placeholder_index,
                     Instruction::GotoIf(codegen.instruction_index())
                 );
                 if let Some(ext) = ext {
-                    match &**ext {
-                        Block(block) => block.generate(codegen),
-                        If(..) => ext.generate(codegen),
-                        _ => unreachable!()
-                    }
+                    block!(codegen, {
+                        match &**ext {
+                            Block(block) => block.generate(codegen),
+                            If(..) => ext.generate(codegen),
+                            _ => unreachable!()
+                        }
+                    });
                 }
             }
             For(ident, iterable, block) => {
@@ -137,14 +156,14 @@ impl Generate for Node {
                     };
                     let b = if op.op == RangeIncl { b + 1 } else { b };
                     codegen.register(ident);
-                    codegen.push(Instruction::PushNumber64(
-                        Type::U64,
-                        a.try_into().expect("invalid value")
-                    ));
-                    let start_stack_index = codegen.stack_index;
-                    let start_instr_index = codegen.instruction_index();
-                    block.generate(codegen);
-                    codegen.push(Instruction::SetStackIndex(start_stack_index));
+                    block!(codegen, {
+                        codegen.push(Instruction::PushNumber64(
+                            Type::U64,
+                            a.try_into().expect("invalid value")
+                        ));
+                        let start_instr_index = codegen.instruction_index();
+                        block.generate(codegen);
+                    });
                     codegen.push(Instruction::LoopUpdate(
                         b.try_into().expect("invalid value"),
                         1,

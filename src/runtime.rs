@@ -150,6 +150,7 @@ pub enum Instruction {
     PushNumber16(Type, u16),
     PushNumber32(Type, u32),
     PushNumber64(Type, u64),
+    PushBool(bool),
     PushString(String),
     PushType(Type),
     Add(Type),
@@ -312,6 +313,9 @@ impl Runtime {
                         Type::F64 => self.stack.push(Value { F64: f64::from_bits(*u_64) }),
                         _ => panic!()
                     }
+                }
+                PushBool(boolean) => {
+                    self.stack.push(Value { Bool: *boolean });
                 }
                 PushString(string) => {
                     let ptr = self.heap_add(Box::new(string.clone()));
