@@ -1,9 +1,13 @@
 let a = 0;
 let b = 1;
-
-for _ in 0..20 {
-    let new = a + b;
-    a = b;
-    b = new;
-    println(tostring(new));
+let n = 0;
+let i = 0;
+:loopstart;
+n = a + b;
+a = b;
+b = n;
+i = i + 1;
+if i != 30 {
+    goto loopstart;
 }
+println(tostring(b));
