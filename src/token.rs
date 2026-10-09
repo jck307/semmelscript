@@ -58,6 +58,7 @@ string_enum! { Keyword,
     For = "for",
     While = "while",
     In = "in",
+    Goto = "goto",
 }
 
 string_enum! { Operator,

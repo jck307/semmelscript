@@ -1,50 +1,27 @@
-// use crate::*;
-// use crate::runtime::*;
+#![allow(unused)]
 
-// mod funcs;
-// use funcs::*;
+mod funcs;
 
-// #[macro_export]
-// macro_rules! get {
-//     ($scope:expr, $name:ident, $type:ident) => {
-//         expect_type!(
-//             $scope.get(stringify!($name))
-//                 .unwrap_or_else(|_| {
-//                     panic!(concat!("invalid arg: ", stringify!($name)));
-//                 }),
-//             $type
-//         )
-//     }
-// }
+pub use funcs::*;
+use std::collections::HashMap;
 
-// use crate::get;
+pub type Builtin = fn(&mut crate::Runtime);
+pub type Builtins = HashMap<Box<str>, Builtin>;
 
-// macro_rules! add {
-//     ($scope:expr,
-//         $($name:ident($($arg:ident$(,)?)*);)*) => {
+macro_rules! add {
+    ($hashmap:expr, [$($name:ident($($arg:ident),*),)*]) => {
+        $(
+            let ptr: Builtin = $name;
+            $hashmap.insert(stringify!($name).into(), ptr);
+        )*
+    }
+}
 
-//         $(
-//             let func = Object::Function {
-//                 func: Box::new(Function::Pointer($name)),
-//                 args: vec![$( stringify!($arg).into(), )*],
-//                 scope: $scope,
-//             };
-//             $scope.define(stringify!($name), func);
-//         )*
-//     }
-// }
-
-// pub fn init(scope: &mut Scope) {
-//     this is such a sexy macro
-//     add!(scope,
-//         println(text);
-//         print(text);
-//         call(cmd);
-//         source(path);
-//         tostring(value);
-//         len(arr);
-//         get(arr, index);
-//         set(arr, index, value);
-//         drop(var);
-//     );
-// }
+pub fn get_builtins() -> Builtins {
+    let mut builtins = HashMap::new();
+    add!(builtins, [
+        println(),
+        tostring(),
+    ]);
+    builtins
+}

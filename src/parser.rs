@@ -23,7 +23,13 @@ impl Parser {
             Token::Float(float) => Node::Float(*float),
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
-            Token::Operator(Operator::BracketOpen) => Node::List(self.read_args(Operator::BracketClose)?),
+            Token::Operator(Operator::ParenOpen) => {
+                let expr = self.read_expression()?;
+                self.tokens.expect(&Token::Operator(Operator::ParenClose))?;
+                expr
+            }
+            Token::Operator(Operator::BracketOpen) =>
+                Node::List(self.read_args(Operator::BracketClose)?),
             Token::Operator(Operator::BraceOpen) => {
                 self.tokens.back();
                 self.read_block(true)?
@@ -176,9 +182,15 @@ impl Parser {
         let expr = self.read_expression()?;
         self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
         Ok(Node::DefineVariable(
-            ident.to_string(),
+            ident.to_string().into(),
             Box::new(expr)
         ))
+    }
+
+    fn read_goto(&mut self) -> Result<Node> {
+        let ident = self.read_ident_as_string()?;
+        self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
+        Ok(Node::Goto(ident.into()))
     }
 
     fn read_func(&mut self) -> Result<Node> {
@@ -195,7 +207,7 @@ impl Parser {
         let Node::Block(block) = self.read_block(true)?
             else { unreachable!() };
         Ok(Node::DefineFunction(
-            ident.to_string(),
+            ident.to_string().into(),
             args,
             block
         ))
@@ -230,9 +242,15 @@ impl Parser {
                         While => self.read_while()?,
                         Func => self.read_func()?,
                         Let => self.read_let()?,
+                        Goto => self.read_goto()?,
                         True | False | Elif | Else | In
                             => { return Err("unexpected keyword".into()) }
                     });
+                }
+                Ok(Token::Operator(Operator::Colon)) => {
+                    self.tokens.step();
+                    nodes.push(Node::Label(self.read_ident_as_string()?.into()));
+                    self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
                 }
                 Ok(_) => {
                     nodes.push(self.read_expression()?);
@@ -241,7 +259,9 @@ impl Parser {
                         Token::Operator(Operator::BraceClose) => {
                             return_last = true;
                         }
-                        token => { return Err(format!("expected ';' or '}}' (found {token:?})").into()) }
+                        token => { return Err(format!(
+                            "expected ';' or '}}' (found {token:?})").into())
+                        }
                     }
                 }
                 Err(_) => {

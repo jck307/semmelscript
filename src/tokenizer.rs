@@ -1,8 +1,9 @@
 use crate::{
+    Integer,
+    Result,
     buffer::Buffer,
     token::*,
     syntax::*,
-    Result,
 };
 
 pub struct Tokenizer {
@@ -46,7 +47,10 @@ impl Tokenizer {
     }
 
     fn read_num(&mut self) -> Result<Token> {
-        // TODO fix
+        let negative = self.buffer.peek()? == &'-';
+        if negative {
+            self.buffer.step();
+        }
         let mut digits = String::new();
         for ch in self.buffer.next_from(&self.digit_chars) {
             digits.push(ch);
@@ -61,7 +65,13 @@ impl Tokenizer {
                 return Ok(Token::Float(format!("{digits}.{decimals}").parse()?))
             }
         }
-        Ok(Token::Integer(digits.parse()?))
+        let num: Integer = digits.parse()?;
+        let num = if negative {
+            -num
+        } else {
+            num
+        };
+        Ok(Token::Integer(num))
     }
 
     fn read_str(&mut self, term: char) -> Result<Token> {
@@ -108,7 +118,7 @@ impl Tokenizer {
     }
 
     fn read_token(&mut self, ch: char) -> Result<Token> {
-        if DIGITS.contains(ch) {
+        if NUMBER_OPENERS.contains(ch) {
             self.read_num()
         } else if STR_TERMINATORS.contains(ch) {
             self.read_str(ch)

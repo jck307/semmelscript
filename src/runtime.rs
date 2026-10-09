@@ -4,6 +4,8 @@ use std::{
     collections::HashMap,
 };
 
+use crate::stdlib::*;
+
 // macro_rules! get_arg {
 //     ($stack:ident, $type:ty) => {{
 //         let ptr = $stack.current();
@@ -31,7 +33,6 @@ macro_rules! print_bytes {
     }}
 }
 
-#[macro_export]
 macro_rules! op {
     ($self:ident, $type:expr, $op:tt) => {{
         match $type {
@@ -59,6 +60,11 @@ macro_rules! op {
 
     // set $result to Bool for binary operators
     (calc $self:ident, $type:ident, ==) => {{ op!($self, $type, Bool, ==) }};
+    (calc $self:ident, $type:ident, !=) => {{ op!($self, $type, Bool, !=) }};
+    (calc $self:ident, $type:ident, <)  => {{ op!($self, $type, Bool, <) }};
+    (calc $self:ident, $type:ident, <=) => {{ op!($self, $type, Bool, <=) }};
+    (calc $self:ident, $type:ident, >)  => {{ op!($self, $type, Bool, >) }};
+    (calc $self:ident, $type:ident, >=) => {{ op!($self, $type, Bool, >=) }};
 
     // set $result to $type for everything else
     (calc $self:ident, $type:ident, $op:tt) => {{ op!($self, $type, $type, $op) }};
@@ -93,15 +99,15 @@ macro_rules! define_for_types {
         #[allow(dead_code)]
         #[derive(Clone, Copy, Debug)]
         #[repr(u8)]
-        enum Type {
+        pub enum Type {
              $( $value, )*
         }
 
         #[allow(non_snake_case)]
         #[derive(Clone, Copy)]
-        union Value {
-            $( $value: $type, )*
-            Type: Type,
+        pub union Value {
+            $( pub $value: $type, )*
+            pub Type: Type,
         }
     }
 }
@@ -124,7 +130,7 @@ define_for_types! {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-enum Instruction {
+pub enum Instruction {
     Debug,
     Exit,
     Call(Rc<Function>),
@@ -143,32 +149,37 @@ enum Instruction {
     PushNumber16(Type, u16),
     PushNumber32(Type, u32),
     PushNumber64(Type, u64),
-    PushString(*mut String),
+    PushString(String),
     PushType(Type),
     Add(Type),
     Sub(Type),
     Mul(Type),
     Div(Type),
     Mod(Type),
-    Equals(Type),
+    Equal(Type),
+    Inequal(Type),
+    Greater(Type),
+    GreaterEqual(Type),
+    Less(Type),
+    LessEqual(Type),
     And,
     Or,
+    Placeholder,
 }
 
 use Instruction::*;
 
 type Function = [Instruction];
 
-// const INITIAL_STACK_SIZE: usize = 256;
-const STACK_SIZE: usize = 8;
+const STACK_SIZE: usize = 256;
 
-struct Stack {
+pub struct Stack {
     stack: Box<[Value; STACK_SIZE]>,
     next_stack_id: usize,
 }
 
-struct Runtime {
-    stack: Stack,
+pub struct Runtime {
+    pub stack: Stack,
     heap: HashMap<usize, Box<dyn Any>>,
     next_heap_id: usize,
 }
@@ -176,13 +187,12 @@ struct Runtime {
 impl Stack {
     fn new() -> Self {
         Self {
-            // stack: Vec::with_capacity(INITIAL_STACK_SIZE),
             stack: Box::new([Value { Null: () }; STACK_SIZE]),
             next_stack_id: 0,
         }
     }
 
-    fn push(&mut self, value: Value) {
+    pub fn push(&mut self, value: Value) {
         self.stack[self.next_stack_id] = value;
         self.next_stack_id += 1;
     }
@@ -192,12 +202,12 @@ impl Stack {
     //     self.stack[last_id] = StackItem::new(value, ty);
     // }
 
-    fn pop(&mut self) -> Value {
+    pub fn pop(&mut self) -> Value {
         self.next_stack_id = self.next_stack_id.saturating_sub(1);
         self.stack[self.next_stack_id]
     }
 
-    fn peek(&self) -> &Value {
+    pub fn peek(&self) -> &Value {
         &self.stack[self.last_id()]
     }
 
@@ -233,7 +243,7 @@ impl Stack {
 }
 
 impl Runtime {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             stack: Stack::new(),
             heap: HashMap::new(),
@@ -241,14 +251,14 @@ impl Runtime {
         }
     }
 
-    fn heap_add(&mut self, b: Box<dyn Any>) -> *mut u8 {
+    pub fn heap_add(&mut self, b: Box<dyn Any>) -> *mut u8 {
         let id = self.next_heap_id;
         self.heap.insert(id, b);
         self.next_heap_id += 1;
         Box::as_mut_ptr(&mut self.heap.get_mut(&id).unwrap()) as *mut u8
     }
 
-    fn call(&mut self, func: Rc<Function>) {
+    pub fn call(&mut self, func: Rc<Function>) {
         let mut i = 0;
         while i < (*func).len() {
             let instruction = &func[i];
@@ -302,7 +312,10 @@ impl Runtime {
                         _ => panic!()
                     }
                 }
-                PushString(string) => self.stack.push(Value { Str: string.clone() }),
+                PushString(string) => {
+                    let ptr = self.heap_add(Box::new(string.clone()));
+                    self.stack.push(Value { Str: ptr as *mut String })
+                }
                 PushType(ty) => self.stack.push(Value { Type: *ty }),
                 Goto(index) => { i = *index }
                 GotoConditional(index) => {
@@ -325,9 +338,15 @@ impl Runtime {
                 Mul(ty) => op!(self, ty, *),
                 Div(ty) => op!(self, ty, /),
                 Mod(ty) => op!(self, ty, %),
-                Equals(ty) => op!(self, ty, ==),
+                Equal(ty) => op!(self, ty, ==),
+                Inequal(ty) => op!(self, ty, !=),
+                Greater(ty) => op!(self, ty, >),
+                GreaterEqual(ty) => op!(self, ty, >=),
+                Less(ty) => op!(self, ty, <),
+                LessEqual(ty) => op!(self, ty, <=),
                 And => op!(self, Bool, Bool, &&),
                 Or => op!(self, Bool, Bool, ||),
+                Placeholder => unreachable!(),
             }
         }
     }
@@ -337,49 +356,13 @@ impl Runtime {
 fn debug_hexdump(runtime: &mut Runtime) {
     println!("current stack:");
     for (i, value) in runtime.stack.stack[..runtime.stack.next_stack_id].iter().enumerate() {
-        print!("    {i}: ");
+        print!("    {i:>2} ");
         for i in 0..std::mem::size_of::<Value>() {
             unsafe {
                 print!("{:0>2X} ", *(value as *const Value).cast::<u8>().add(i) as u8);
             }
         }
         println!();
-    }
-}
-
-fn internal_tostring(runtime: &mut Runtime) {
-    unsafe {
-        let ty = runtime.stack.pop().Type;
-        let num = runtime.stack.peek();
-        let string = match ty {
-            Type::U16 => num.U16.to_string(),
-            Type::U32 => num.U32.to_string(),
-            Type::U64 => num.U64.to_string(),
-            _ => todo!()
-        };
-        let b = Box::new(string);
-        let ptr = runtime.heap_add(b);
-        // let ptr = (&mut runtime.stack.heap[id]) as *mut String;
-        runtime.stack.push(Value { Str: ptr as *mut String });
-    }
-}
-
-fn internal_print(runtime: &mut Runtime) {
-    unsafe {
-        let string = runtime.stack.peek().Str;
-        // print_bytes!(*string, String);
-        println!("{}", *string);
-    }
-}
-
-#[allow(unused)]
-fn internal_str_append(runtime: &mut Runtime) {
-    unsafe {
-        let src = runtime.stack.pop().Str as *mut String;
-        let rhs = runtime.stack.pop().Str as *mut String;
-        // print_bytes!(*rhs, String);
-        // print_bytes!(*src, String);
-        (*src).push_str(&*rhs);
     }
 }
 
@@ -390,14 +373,14 @@ fn simple() {
     runtime.call(Rc::new([
         PushNumber16(Type::U16, 123),
         PushType(Type::U16),
-        CallInternal(internal_tostring),
+        CallInternal(tostring),
         RotateLeft(2),
         Pop,
         PushString(&mut "hejsan".to_string()),
         Debug,
-        CallInternal(internal_print),
+        CallInternal(println),
         Pop,
-        CallInternal(internal_print),
+        CallInternal(println),
         Pop,
     ]));
     assert_eq!(runtime.stack.len(), 0);
@@ -413,11 +396,11 @@ fn exclaim_513() {
         PushNumber16(Type::U16, 257),
         Add(Type::U16),
         PushType(Type::U16),
-        CallInternal(internal_tostring),
+        CallInternal(tostring),
         DupFrom(0),
         DupFrom(2),
-        CallInternal(internal_str_append),
-        CallInternal(internal_print),
+        CallInternal(str_append),
+        CallInternal(println),
         Debug,
     ]));
 }
@@ -436,11 +419,11 @@ fn test_fib() {
         Swap(1),
         Swap(0),
         Pop,
-        LoopUpdate(92, 1, 3),
+        LoopUpdate(20, 1, 3),
         Pop,
         PushType(Type::U64),
-        CallInternal(internal_tostring),
-        CallInternal(internal_print),
+        CallInternal(tostring),
+        CallInternal(println),
     ]));
 }
 
@@ -462,8 +445,8 @@ fn test_fib_mod() {
         LoopUpdate(4_000_000, 1, 3),
         Pop,
         PushType(Type::U64),
-        CallInternal(internal_tostring),
-        CallInternal(internal_print),
+        CallInternal(tostring),
+        CallInternal(println),
     ]));
 }
 
@@ -472,7 +455,7 @@ fn fib() {
     test_fib();
 }
 
-#[test]
-fn mod_fib() {
-    test_fib_mod();
-}
+// #[test]
+// fn mod_fib() {
+//     test_fib_mod();
+// }

@@ -10,11 +10,13 @@ pub enum Node {
     BinaryOp(Box<BinaryOp>),
 
     // Statements
-    DefineVariable(String, Box<Node>),
-    DefineFunction(String, Vec<Box<str>>, Block),
+    DefineVariable(Box<str>, Box<Node>),
+    DefineFunction(Box<str>, Vec<Box<str>>, Block),
     If(Box<Node>, Box<Node>, Option<Box<Node>>),
     For(Box<str>, Box<Node>, Box<Node>),
     While(Box<Node>, Box<Node>),
+    Label(Box<str>),
+    Goto(Box<str>),
 
     // Literals
     Identifier(Box<str>),

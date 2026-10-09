@@ -1,20 +1,5 @@
 use semmel::*;
 
-fn run() -> Result<()> {
-    let [_, path]: [String; 2] = std::env::args()
-        .collect::<Vec<_>>().try_into()
-        .unwrap_or_else(|_| panic!("Expected 1 argument!"));
-
-    let string = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
-
-    let _ = parse(string)?;
-    // let (mut runtime, mut scope) = setup!();
-    // block.eval(&mut runtime, &mut scope)?;
-
-    Ok(())
-}
-
 fn main() {
     if let Err(err) = run() {
         eprintln!("{err}");
