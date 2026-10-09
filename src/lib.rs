@@ -19,8 +19,8 @@ use {
 
 type Result<T> = std::result::Result<T,
     Box<dyn std::error::Error + Send + Sync + 'static>>;
-type Integer = i32;
-type Float = f32;
+type Integer = i64;
+type Float = f64;
 
 fn parse(string: String) -> Result<node::Block> {
     let buffer = Buffer::new(string.chars().collect());

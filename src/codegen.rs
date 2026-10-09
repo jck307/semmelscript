@@ -17,6 +17,10 @@ pub struct CodeGenerator {
 }
 
 impl CodeGenerator {
+    fn instruction_index(&self) -> usize {
+        self.instructions.len()
+    }
+
     fn push(&mut self, instr: Instruction) -> usize {
         self.instructions.push(instr);
         self.instructions.len() - 1
@@ -37,7 +41,7 @@ impl CodeGenerator {
     }
 
     fn register_label(&mut self, ident: &Box<str>) {
-        self.labels.insert(ident.clone(), self.get_index());
+        self.labels.insert(ident.clone(), self.instruction_index());
     }
 
     fn get_ident(&self, ident: &Box<str>) -> usize {
@@ -50,10 +54,6 @@ impl CodeGenerator {
 
     fn get_label(&self, ident: &Box<str>) -> usize {
         *self.labels.get(ident).expect(&*format!("invalid label: {ident}"))
-    }
-
-    fn get_index(&self) -> usize {
-        self.instructions.len()
     }
 
     pub fn do_final(&mut self) {
@@ -84,7 +84,7 @@ impl Generate for Node {
                 codegen.push_goto(ident);
             }
             Integer(integer) => {
-                codegen.push(Instruction::PushNumber32(Type::I32, integer.cast_unsigned()));
+                codegen.push(Instruction::PushNumber64(Type::I64, integer.cast_unsigned()));
             }
             String(string) => {
                 codegen.push(Instruction::PushString(string.to_string()));
@@ -114,7 +114,7 @@ impl Generate for Node {
                 block.generate(codegen);
                 codegen.replace(
                     placeholder_index,
-                    Instruction::GotoIf(codegen.get_index())
+                    Instruction::GotoIf(codegen.instruction_index())
                 );
                 if let Some(ext) = ext {
                     match &**ext {
@@ -124,7 +124,37 @@ impl Generate for Node {
                     }
                 }
             }
-            other => todo!("{}", format!("{other:?}"))
+            For(ident, iterable, block) => {
+                use Operator::*;
+                'block: { if let Node::BinaryOp(op) = &**iterable {
+                    match op.op {
+                        RangeExcl | RangeIncl => {}
+                        _ => { break 'block }
+                    }
+                    let (a, b) = match (op.a.clone(), op.b.clone()) {
+                        (Node::Integer(a), Node::Integer(b)) => (a, b),
+                        _ => { break 'block }
+                    };
+                    let b = if op.op == RangeIncl { b + 1 } else { b };
+                    codegen.register(ident);
+                    codegen.push(Instruction::PushNumber64(
+                        Type::U64,
+                        a.try_into().expect("invalid value")
+                    ));
+                    let start_stack_index = codegen.stack_index;
+                    let start_instr_index = codegen.instruction_index();
+                    block.generate(codegen);
+                    codegen.push(Instruction::SetStackIndex(start_stack_index));
+                    codegen.push(Instruction::LoopUpdate(
+                        b.try_into().expect("invalid value"),
+                        1,
+                        start_instr_index
+                    ));
+                    return
+                }}
+                todo!("can only iterate over constant ranges, not {iterable:?}")
+            }
+            other => todo!("{other:?}")
         }
     }
 }
@@ -157,7 +187,7 @@ impl Generate for BinaryOp {
 
         self.a.generate(codegen);
         self.b.generate(codegen);
-        let ty = Type::I32; // TODO ...
+        let ty = Type::I64;
         codegen.push(match &self.op {
             Operator::Add => Instruction::Add(ty),
             Operator::Sub => Instruction::Sub(ty),
@@ -172,7 +202,7 @@ impl Generate for BinaryOp {
             Operator::GreaterEqual => Instruction::GreaterEqual(ty),
             Operator::And => Instruction::And,
             Operator::Or => Instruction::Or,
-            other => todo!("{}", format!("{other:?}"))
+            other => todo!("{other:?}")
         });
     }
 }

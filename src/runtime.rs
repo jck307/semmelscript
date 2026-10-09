@@ -137,8 +137,8 @@ pub enum Instruction {
     CallInternal(fn(&mut Runtime)),
     Goto(usize),
     GotoIf(usize),
-    // GotoIfElse(usize, usize),
     LoopUpdate(u64, u64, usize),
+    SetStackIndex(usize),
     Pop,
     Dup,
     DupFrom(usize),
@@ -326,15 +326,6 @@ impl Runtime {
                         }
                     }
                 }
-                // GotoIfElse(index1, index2) => {
-                //     unsafe {
-                //         if self.stack.pop().Bool == false {
-                //             i = *index1;
-                //         } else {
-                //             i = *index2;
-                //         }
-                //     }
-                // }
                 LoopUpdate(max, step, jump_index) => {
                     unsafe {
                         self.stack.peek_mut().U64 += step;
@@ -342,6 +333,9 @@ impl Runtime {
                             i = *jump_index;
                         }
                     }
+                }
+                SetStackIndex(index) => {
+                    self.stack.next_stack_id = *index;
                 }
                 Add(ty) => op!(self, ty, +),
                 Sub(ty) => op!(self, ty, -),
