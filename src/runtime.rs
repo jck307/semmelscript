@@ -136,7 +136,8 @@ pub enum Instruction {
     Call(Rc<Function>),
     CallInternal(fn(&mut Runtime)),
     Goto(usize),
-    GotoConditional(usize),
+    GotoIf(usize),
+    // GotoIfElse(usize, usize),
     LoopUpdate(u64, u64, usize),
     Pop,
     Dup,
@@ -318,13 +319,22 @@ impl Runtime {
                 }
                 PushType(ty) => self.stack.push(Value { Type: *ty }),
                 Goto(index) => { i = *index }
-                GotoConditional(index) => {
+                GotoIf(index) => {
                     unsafe {
                         if self.stack.pop().Bool == false {
                             i = *index;
                         }
                     }
                 }
+                // GotoIfElse(index1, index2) => {
+                //     unsafe {
+                //         if self.stack.pop().Bool == false {
+                //             i = *index1;
+                //         } else {
+                //             i = *index2;
+                //         }
+                //     }
+                // }
                 LoopUpdate(max, step, jump_index) => {
                     unsafe {
                         self.stack.peek_mut().U64 += step;

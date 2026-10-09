@@ -19,10 +19,6 @@ impl<T: PartialEq + Clone + Debug> Buffer<T> {
         }
     }
 
-    pub fn get(&self, i: usize) -> Option<&T> {
-        self.buffer.get(i)
-    }
-
     pub fn step(&mut self) {
         self.i += 1;
     }
@@ -42,6 +38,10 @@ impl<T: PartialEq + Clone + Debug> Buffer<T> {
 
     pub fn peek(&mut self) -> Result<&T> {
         self.buffer.get(self.i).ok_or(EOF.into())
+    }
+
+    pub fn peekn(&mut self, count: usize) -> Result<&T> {
+        self.buffer.get(self.i + count).ok_or(EOF.into())
     }
 
     pub fn expect(&mut self, value: &T) -> Result<()> {

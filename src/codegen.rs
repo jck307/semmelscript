@@ -9,16 +9,22 @@ use crate::{
 #[derive(Default)]
 pub struct CodeGenerator {
     pub instructions: Vec<Instruction>,
+    pub builtins: Builtins,
     pub stack_index: usize,
     pub stack_register: HashMap<Box<str>, usize>,
     pub labels: HashMap<Box<str>, usize>,
-    pub builtins: Builtins,
+    pub gotos: Vec<(usize, Box<str>)>,
 }
 
 impl CodeGenerator {
     fn push(&mut self, instr: Instruction) -> usize {
         self.instructions.push(instr);
         self.instructions.len() - 1
+    }
+
+    fn push_goto(&mut self, ident: &Box<str>) {
+        let index = self.push(Instruction::Placeholder);
+        self.gotos.push((index, ident.clone()));
     }
 
     fn replace(&mut self, index: usize, instr: Instruction) {
@@ -31,7 +37,7 @@ impl CodeGenerator {
     }
 
     fn register_label(&mut self, ident: &Box<str>) {
-        self.labels.insert(ident.clone(), self.instructions.len());
+        self.labels.insert(ident.clone(), self.get_index());
     }
 
     fn get_ident(&self, ident: &Box<str>) -> usize {
@@ -49,6 +55,18 @@ impl CodeGenerator {
     fn get_index(&self) -> usize {
         self.instructions.len()
     }
+
+    pub fn do_final(&mut self) {
+        for (index, label) in self.gotos.clone() {
+            self.replace(index, Instruction::Goto(self.get_label(&label)));
+        }
+
+        for instruction in &self.instructions {
+            if let Instruction::Placeholder = instruction {
+                panic!();
+            }
+        }
+    }
 }
 
 pub trait Generate {
@@ -63,7 +81,7 @@ impl Generate for Node {
             BinaryOp(bin_op) => bin_op.generate(codegen),
             Label(ident) => codegen.register_label(ident),
             Goto(ident) => {
-                codegen.push(Instruction::Goto(codegen.get_label(ident)));
+                codegen.push_goto(ident);
             }
             Integer(integer) => {
                 codegen.push(Instruction::PushNumber32(Type::I32, integer.cast_unsigned()));
@@ -90,14 +108,21 @@ impl Generate for Node {
                     _ => panic!()
                 }
             }
-            If(condition, block, _ext) => {
+            If(condition, block, ext) => {
                 condition.generate(codegen);
                 let placeholder_index = codegen.push(Instruction::Placeholder);
                 block.generate(codegen);
                 codegen.replace(
                     placeholder_index,
-                    Instruction::GotoConditional(codegen.get_index())
+                    Instruction::GotoIf(codegen.get_index())
                 );
+                if let Some(ext) = ext {
+                    match &**ext {
+                        Block(block) => block.generate(codegen),
+                        If(..) => ext.generate(codegen),
+                        _ => unreachable!()
+                    }
+                }
             }
             other => todo!("{}", format!("{other:?}"))
         }

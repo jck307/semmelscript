@@ -75,6 +75,7 @@ pub fn run() -> Result<()> {
         ..CodeGenerator::default()
     };
     block.generate(&mut generator);
+    generator.do_final();
 
     if debug {
         for inst in &generator.instructions {
