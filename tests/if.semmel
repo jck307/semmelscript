@@ -1,0 +1,17 @@
+let i = 0;
+:start;
+if i == 0 {
+    println("if reached");
+    i = 1;
+} elif i == 1 {
+    println("elif 1 reached");
+    i = 2;
+} elif i == 2 {
+    println("elif 2 reached");
+    i = 3;
+} else {
+    println("else reached");
+    goto end;
+}
+goto start;
+:end;
