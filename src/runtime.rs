@@ -97,12 +97,14 @@ macro_rules! op {
     // }};
 }
 
+pub type Function = Rc<[Instruction]>;
+
 #[allow(dead_code)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instruction {
     Debug,
     Exit,
-    Call(Rc<Function>),
+    Call(Function),
     CallInternal(fn(&mut Runtime)),
     Goto(usize),
     GotoIf(usize),
@@ -139,8 +141,6 @@ pub enum Instruction {
 }
 
 use Instruction::*;
-
-type Function = [Instruction];
 
 const STACK_SIZE: usize = 256;
 
@@ -229,7 +229,7 @@ impl Runtime {
         Box::as_mut_ptr(&mut self.heap.get_mut(&id).unwrap()) as *mut u8
     }
 
-    pub fn call(&mut self, func: Rc<Function>) {
+    pub fn call(&mut self, func: Function) {
         let mut i = 0;
         while i < (*func).len() {
             let instruction = &func[i];

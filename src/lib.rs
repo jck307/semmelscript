@@ -9,8 +9,10 @@ mod runtime;
 mod codegen;
 mod types;
 
+use std::{
+    rc::Rc,
+};
 use {
-    std::rc::Rc,
     buffer::Buffer,
     tokenizer::Tokenizer,
     parser::Parser,
@@ -75,22 +77,22 @@ pub fn run() -> Result<()> {
         .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
 
     let block = parse(string)?;
-    let mut generator = CodeGenerator {
-        builtins: stdlib::get_builtins(),
-        ..CodeGenerator::default()
-    };
+    let mut generator = CodeGenerator::new();
+    generator.builtins = stdlib::get_builtins();
     let mut scope = Scope::default();
     block.generate(&mut generator, &mut scope)?;
     generator.do_final()?;
 
     if debug {
-        for inst in &generator.instructions {
-            println!("{inst:?}");
+        for func in &generator.functions_final {
+            for i in 0..func.len() {
+                println!("{:?}", func[i]);
+            }
         }
     }
 
     let mut runtime = Runtime::new();
-    runtime.call(generator.instructions.into());
+    runtime.call(generator.functions_final[0].clone().into());
 
     if debug {
         runtime.call(Rc::new([Instruction::Debug]));

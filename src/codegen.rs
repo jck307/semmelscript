@@ -1,4 +1,6 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+};
 use crate::{
     Result,
     runtime::Instruction,
@@ -21,23 +23,34 @@ macro_rules! block {
     }}
 }
 
+macro_rules! replace {
+    ($functions:expr, $location:expr, $value:expr) => {{
+        $functions[$location.0][$location.1] = $value;
+    }}
+}
+
+type Location = (usize, usize);
+
 #[derive(Default)]
 pub struct CodeGenerator {
-    pub instructions: Vec<Instruction>,
     pub builtins: Builtins,
-    pub stack_index: usize,
-    pub labels: HashMap<Box<str>, usize>,
-    pub gotos: Vec<(usize, Box<str>)>,
+    pub functions_final: Box<[Box<[Instruction]>]>,
+    functions: Vec<Vec<Instruction>>,
+    current_function_id: usize,
+    stack_index: usize,
+    labels: HashMap<Box<str>, usize>,
+    gotos: Vec<(Location, Box<str>)>,
+    function_calls: Vec<(Location, usize)>,
 }
 
 #[derive(Default)]
 pub struct Scope {
-    pub stack_register: HashMap<Box<str>, usize>,
-    pub parent: *mut Scope,
+    register: HashMap<Box<str>, usize>,
+    parent: *mut Scope,
 }
 
 pub trait Generate {
-    fn generate(&self, codegen: &mut CodeGenerator, scope: &mut Scope) -> Result<()> ;
+    fn generate(&self, codegen: &mut CodeGenerator, scope: &mut Scope) -> Result<()>;
 
     fn generate_block(&self, codegen: &mut CodeGenerator, scope: &mut Scope)
             -> Result<()> {
@@ -49,13 +62,40 @@ pub trait Generate {
 }
 
 impl CodeGenerator {
-    fn instruction_index(&self) -> usize {
-        self.instructions.len()
+    pub fn new() -> Self {
+        Self {
+            functions: vec![vec![]],
+            ..Self::default()
+        }
     }
 
-    fn push(&mut self, instr: Instruction) -> usize {
-        self.instructions.push(instr);
-        self.instructions.len() - 1
+    fn instruction_index(&self) -> usize {
+        self.current_function().len()
+    }
+
+    fn current_function(&self) -> &Vec<Instruction> {
+        &self.functions[self.current_function_id]
+    }
+
+    fn current_function_mut(&mut self) -> &mut Vec<Instruction> {
+        &mut self.functions[self.current_function_id]
+    }
+
+    fn new_function(&mut self, scope: &mut Scope, ident: &Box<str>) -> usize {
+        let old_id = self.current_function_id;
+        self.current_function_id = self.functions.len();
+        self.functions.push(Vec::new());
+        scope.register_function(ident, self.current_function_id);
+        old_id
+    }
+
+    fn exit_function(&mut self, old_id: usize) {
+        self.current_function_id = old_id;
+    }
+
+    fn push(&mut self, instr: Instruction) -> Location {
+        self.current_function_mut().push(instr);
+        (self.current_function_id, self.instruction_index() - 1)
     }
 
     fn push_goto(&mut self, ident: &Box<str>) {
@@ -63,13 +103,21 @@ impl CodeGenerator {
         self.gotos.push((index, ident.clone()));
     }
 
-    fn replace(&mut self, index: usize, instr: Instruction) {
-        self.instructions[index] = instr;
+    fn replace(&mut self, location: Location, instr: Instruction) {
+        replace!(self.functions, location, instr);
     }
 
-    fn get_builtin(&self, ident: &Box<str>) -> Result<Builtin> {
-        if let Some(builtin) = self.builtins.get(ident)
-            { Ok(*builtin) } else { Err(format!("invalid builtin: {ident}").into()) }
+    fn call_function(&mut self, scope: &Scope, ident: &Box<str>) -> Result<()> {
+        if let Some(builtin) = self.builtins.get(ident) {
+            self.push(Instruction::CallInternal(*builtin));
+            Ok(())
+        } else if let Ok(id) = scope.get_ident(ident) {
+            let index = self.push(Instruction::Placeholder);
+            self.function_calls.push((index, id));
+            Ok(())
+        } else {
+            Err(format!("invalid function: {ident}").into())
+        }
     }
 
     fn register_label(&mut self, ident: &Box<str>) {
@@ -82,14 +130,31 @@ impl CodeGenerator {
     }
 
     pub fn do_final(&mut self) -> Result<()> {
-        for (index, label) in self.gotos.clone() {
-            self.replace(index, Instruction::Goto(self.get_label(&label)?));
+        for (location, label) in self.gotos.clone() {
+            replace!(self.functions, location, Instruction::Goto(self.get_label(&label)?));
         }
-        for instruction in &self.instructions {
-            if let Instruction::Placeholder = instruction {
-                panic!();
+
+        let mut functions_final = Vec::new();
+        while self.functions.len() > 0 {
+            let function = self.functions.pop().unwrap().into_boxed_slice();
+            functions_final.insert(0, function);
+        }
+
+        for (location, id) in &self.function_calls {
+            let instr = Instruction::Call(functions_final[*id].clone().into());
+            replace!(functions_final, location, instr);
+        }
+
+        self.functions_final = functions_final.into_boxed_slice();
+
+        for function in &self.functions {
+            for instruction in function {
+                if let Instruction::Placeholder = instruction {
+                    panic!();
+                }
             }
         }
+
         Ok(())
     }
 }
@@ -103,8 +168,12 @@ impl Scope {
     }
 
     fn register(&mut self, codegen: &mut CodeGenerator, ident: &Box<str>) {
-        self.stack_register.insert(ident.clone(), codegen.stack_index);
+        self.register.insert(ident.clone(), codegen.stack_index);
         codegen.stack_index += 1;
+    }
+
+    fn register_function(&mut self, ident: &Box<str>, id: usize) {
+        self.register.insert(ident.clone(), id);
     }
 
     fn is_root(&self) -> bool {
@@ -112,7 +181,7 @@ impl Scope {
     }
 
     fn get_ident(&self, ident: &Box<str>) -> Result<usize> {
-        if let Some(value) = self.stack_register.get(ident) {
+        if let Some(value) = self.register.get(ident) {
             Ok(*value)
         } else if !self.is_root() {
             unsafe {
@@ -150,8 +219,7 @@ impl Generate for Node {
                 }
                 match &**callable {
                     Identifier(ident) => {
-                        let func = codegen.get_builtin(ident)?;
-                        codegen.push(Instruction::CallInternal(func));
+                        codegen.call_function(scope, ident)?;
                     }
                     _ => panic!()
                 }
@@ -203,9 +271,11 @@ impl Generate for Node {
                 }}
                 todo!("can only iterate over constant ranges, not {iterable:?}")
             }
-            // DefineFunction(ident, args, block) => {
-
-            // }
+            DefineFunction(ident, _args, block) => {
+                let old_id = codegen.new_function(scope, ident);
+                block.generate(codegen, scope)?;
+                codegen.exit_function(old_id);
+            }
             other => todo!("{other:?}")
         }
         Ok(())
