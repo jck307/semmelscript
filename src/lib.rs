@@ -7,14 +7,16 @@ mod syntax;
 mod stdlib;
 mod runtime;
 mod codegen;
+mod types;
 
 use {
     std::rc::Rc,
     buffer::Buffer,
     tokenizer::Tokenizer,
     parser::Parser,
-    codegen::{CodeGenerator, Generate},
-    runtime::{Runtime, Type, Value, Instruction},
+    types::*,
+    codegen::{CodeGenerator, Scope, Generate},
+    runtime::{Runtime, Instruction},
 };
 
 type Result<T> = std::result::Result<T,
@@ -77,8 +79,9 @@ pub fn run() -> Result<()> {
         builtins: stdlib::get_builtins(),
         ..CodeGenerator::default()
     };
-    block.generate(&mut generator);
-    generator.do_final();
+    let mut scope = Scope::default();
+    block.generate(&mut generator, &mut scope)?;
+    generator.do_final()?;
 
     if debug {
         for inst in &generator.instructions {

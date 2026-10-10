@@ -4,7 +4,10 @@ use std::{
     collections::HashMap,
 };
 
-use crate::stdlib::*;
+use crate::{
+    stdlib::*,
+    types::*,
+};
 
 // macro_rules! get_arg {
 //     ($stack:ident, $type:ty) => {{
@@ -92,40 +95,6 @@ macro_rules! op {
     //         $self.peek_mut().0.$type $op b;
     //     }
     // }};
-}
-
-macro_rules! define_for_types {
-    ($($value:ident: $type:ty,)*) => {
-        #[allow(dead_code)]
-        #[derive(Clone, Copy, Debug)]
-        #[repr(u8)]
-        pub enum Type {
-             $( $value, )*
-        }
-
-        #[allow(non_snake_case)]
-        #[derive(Clone, Copy)]
-        pub union Value {
-            $( pub $value: $type, )*
-            pub Type: Type,
-        }
-    }
-}
-
-define_for_types! {
-    Null: (),
-    U8:  u8,
-    U16: u16,
-    U32: u32,
-    U64: u64,
-    I8:  i8,
-    I16: i16,
-    I32: i32,
-    I64: i64,
-    F32: f32,
-    F64: f64,
-    Bool: bool,
-    Str: *mut String,
 }
 
 #[allow(dead_code)]
