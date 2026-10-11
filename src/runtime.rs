@@ -190,8 +190,7 @@ impl Runtime {
 
     pub fn heap_add(&mut self, b: Box<dyn Any>) -> *mut u8 {
         let id = self.next_heap_id;
-        self.heap.insert(id, b);
-        self.next_heap_id += 1;
+        self.heap.insert(id, b); self.next_heap_id += 1;
         Box::as_mut_ptr(&mut self.heap.get_mut(&id).unwrap()) as *mut u8
     }
 
@@ -209,7 +208,9 @@ impl Runtime {
                 Exit => { break }
                 Call(func2) => self.call(func2.clone()),
                 CallInternal(internal_func) => internal_func(self),
-                Pop => { self.stack.pop(); }
+                Pop(count) => { 
+                    self.stack.next_stack_id -= count;
+                }
                 Swap(id) => self.stack.swap(*id),
                 Dup(id) => self.stack.dup(*id),
                 MoveTo(id) => self.stack.move_to(*id),

@@ -242,8 +242,8 @@ impl Generate for Node {
                                 codegen.stack_index += 1;
                                 codegen.push(Instruction::RotateRight(info.num_args + 1));
                             }
-                            for _ in 0..info.num_args {
-                                codegen.push(Instruction::Pop);
+                            if 0 < info.num_args {
+                                codegen.push(Instruction::Pop(info.num_args));
                             }
                         } else {
                             return Err(format!("invalid function: {ident}").into())

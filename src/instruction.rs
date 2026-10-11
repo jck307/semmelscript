@@ -14,7 +14,7 @@ pub enum Instruction {
     GotoIf(usize),
     LoopUpdate(u64, u64, usize),
     SetStackIndex(usize),
-    Pop,
+    Pop(usize),
     Dup(usize),
     Swap(usize),
     MoveTo(usize),
@@ -57,7 +57,7 @@ impl Instruction {
             PushString(..) |
             PushType(..)
                 => 1,
-            Pop |
+            Pop(..) |
             MoveTo(..) |
             Add(..) |
             Sub(..) |
