@@ -22,13 +22,13 @@ macro_rules! block {
     }}
 }
 
-macro_rules! replace {
-    ($functions:expr, $location:expr, $value:expr) => {{
-        $functions[$location.0][$location.1] = $value;
-    }}
-}
-
 type Location = (usize, usize);
+
+struct FunctionInfo {
+    id: usize,
+    return_last: bool,
+    num_args: usize,
+}
 
 #[derive(Default)]
 pub struct CodeGenerator {
@@ -44,7 +44,8 @@ pub struct CodeGenerator {
 
 #[derive(Default)]
 pub struct Scope {
-    register: HashMap<Box<str>, usize>,
+    stack_register: HashMap<Box<str>, usize>,
+    function_register: HashMap<Box<str>, FunctionInfo>,
     parent: *mut Scope,
 }
 
@@ -80,12 +81,12 @@ impl CodeGenerator {
         &mut self.functions[self.current_function_id]
     }
 
-    fn new_function(&mut self, scope: &mut Scope, ident: &Box<str>) -> usize {
+    fn new_function(&mut self)
+            -> (usize, usize) {
         let old_id = self.current_function_id;
         self.current_function_id = self.functions.len();
         self.functions.push(Vec::new());
-        scope.register_function(ident, self.current_function_id);
-        old_id
+        (old_id, self.current_function_id)
     }
 
     fn exit_function(&mut self, old_id: usize) {
@@ -105,20 +106,7 @@ impl CodeGenerator {
     }
 
     fn replace(&mut self, location: Location, instr: Instruction) {
-        replace!(self.functions, location, instr);
-    }
-
-    fn call_function(&mut self, scope: &mut Scope, ident: &Box<str>) -> Result<()> {
-        if let Some(builtin) = self.builtins.get(ident) {
-            self.push(Instruction::CallInternal(*builtin));
-            Ok(())
-        } else if let Ok(id) = scope.get_ident(self, ident) {
-            let index = self.push(Instruction::Placeholder);
-            self.function_calls.push((index, id));
-            Ok(())
-        } else {
-            Err(format!("invalid function: {ident}").into())
-        }
+        self.functions[location.0][location.1] = instr;
     }
 
     fn set_stack_index(&mut self, index: usize) {
@@ -139,7 +127,7 @@ impl CodeGenerator {
 
     pub fn do_final(&mut self) -> Result<()> {
         for (location, label) in self.gotos.clone() {
-            replace!(self.functions, location, Instruction::Goto(self.get_label(&label)?));
+            self.replace(location, Instruction::Goto(self.get_label(&label)?));
         }
 
         let mut functions_final = Vec::new();
@@ -149,13 +137,14 @@ impl CodeGenerator {
         }
 
         for (location, id) in &self.function_calls {
+            // TODO fix!!!
             let instr = Instruction::Call(functions_final[*id].clone().into());
-            replace!(functions_final, location, instr);
+            functions_final[location.0][location.1] = instr;
         }
 
         self.functions_final = functions_final.into_boxed_slice();
 
-        for function in &self.functions {
+        for function in &self.functions_final {
             for instruction in function {
                 if let Instruction::Placeholder = instruction {
                     panic!();
@@ -176,19 +165,31 @@ impl Scope {
     }
 
     fn register(&mut self, codegen: &mut CodeGenerator, ident: &Box<str>) {
-        self.register.insert(ident.clone(), codegen.stack_index);
+        self.stack_register.insert(ident.clone(), codegen.stack_index);
     }
 
-    fn register_function(&mut self, ident: &Box<str>, id: usize) {
-        self.register.insert(ident.clone(), id);
+    fn register_function(&mut self, ident: &Box<str>, info: FunctionInfo) {
+        self.function_register.insert(ident.clone(), info);
     }
 
     fn is_root(&self) -> bool {
         self.parent.is_null()
     }
 
+    fn get_function(&self, ident: &Box<str>) -> Result<&FunctionInfo> {
+        if let Some(value) = self.function_register.get(ident) {
+            Ok(value)
+        } else if !self.is_root() {
+            unsafe {
+                (*self.parent).get_function(ident)
+            }
+        } else {
+            Err(format!("invalid function: {ident}").into())
+        }
+    }
+
     fn get_ident(&self, codegen: &mut CodeGenerator, ident: &Box<str>) -> Result<usize> {
-        if let Some(value) = self.register.get(ident) {
+        if let Some(value) = self.stack_register.get(ident) {
             Ok(codegen.stack_index - *value - 1)
         } else if !self.is_root() {
             unsafe {
@@ -229,7 +230,24 @@ impl Generate for Node {
                 }
                 match &**callable {
                     Identifier(ident) => {
-                        codegen.call_function(scope, ident)?;
+                        if let Some(builtin) = codegen.builtins.get(ident) {
+                            codegen.push(Instruction::CallInternal(*builtin));
+                        } else if let Ok(info) = scope.get_function(ident) {
+                            if args.len() != info.num_args {
+                                panic!("function {ident} expected {} args", info.num_args);
+                            }
+                            let index = codegen.push(Instruction::Placeholder);
+                            codegen.function_calls.push((index, info.id));
+                            if info.return_last {
+                                codegen.stack_index += 1;
+                                codegen.push(Instruction::RotateRight(info.num_args + 1));
+                            }
+                            for _ in 0..info.num_args {
+                                codegen.push(Instruction::Pop);
+                            }
+                        } else {
+                            return Err(format!("invalid function: {ident}").into())
+                        }
                     }
                     _ => panic!()
                 }
@@ -284,10 +302,24 @@ impl Generate for Node {
                 }}
                 todo!("can only iterate over constant ranges, not {iterable:?}")
             }
-            DefineFunction(ident, _args, block) => {
-                let old_id = codegen.new_function(scope, ident);
-                block.generate(codegen, &mut Scope::default())?;
+            DefineFunction(ident, args, block) => {
+                let mut func_scope = Scope::default();
+                let old_stack_index = codegen.stack_index;
+                codegen.stack_index = 0;
+                for ident in args {
+                    func_scope.register(codegen, ident);
+                    codegen.stack_index += 1;
+                }
+                let (old_id, id) = codegen.new_function();
+                let info = FunctionInfo {
+                    id,
+                    return_last: block.return_last,
+                    num_args: args.len(),
+                };
+                scope.register_function(ident, info);
+                block.generate(codegen, &mut func_scope)?;
                 codegen.exit_function(old_id);
+                codegen.stack_index = old_stack_index;
             }
             other => todo!("{other:?}")
         }
@@ -297,13 +329,17 @@ impl Generate for Node {
 
 impl Generate for Block {
     fn generate(&self, codegen: &mut CodeGenerator, scope: &mut Scope) -> Result<()> {
-        for node in &self.nodes {
+        for (i, node) in self.nodes.iter().enumerate() {
             let start_stack_index = codegen.stack_index;
             node.generate(codegen, scope)?;
             match node {
-                Node::DefineVariable(..) => {}
+                Node::DefineVariable(..) |
+                Node::DefineFunction(..)
+                    => {}
                 _ => {
-                    codegen.set_stack_index(start_stack_index);
+                    if i != self.nodes.len() - 1 {
+                        codegen.set_stack_index(start_stack_index);
+                    }
                 }
             }
         }

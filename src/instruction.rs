@@ -4,7 +4,7 @@ use crate::{
 };
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone)] // TODO remove Clone
 pub enum Instruction {
     Debug,
     Exit,

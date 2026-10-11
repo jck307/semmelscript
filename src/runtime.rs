@@ -197,9 +197,12 @@ impl Runtime {
 
     pub fn call(&mut self, func: Function) {
         let mut i = 0;
+        const DEBUG: bool = false;
         while i < (*func).len() {
             let instruction = &func[i];
-            // eprintln!("exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
+            if DEBUG {
+                println!("exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
+            }
             i += 1;
             match instruction {
                 Debug => debug_hexdump(self),
@@ -292,7 +295,9 @@ impl Runtime {
                 Or => op!(self, Bool, Bool, ||),
                 Placeholder => unreachable!(),
             }
-            // debug_hexdump(self);
+            if DEBUG {
+                debug_hexdump(self);
+            }
         }
     }
 }
