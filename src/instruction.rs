@@ -48,6 +48,7 @@ use Instruction::*;
 impl Instruction {
     pub fn get_stack_diff(&self) -> isize {
         match self {
+            Pop(count) => -(*count as isize),
             Dup(..) |
             PushNumber8(..) |
             PushNumber16(..) |
@@ -57,7 +58,6 @@ impl Instruction {
             PushString(..) |
             PushType(..)
                 => 1,
-            Pop(..) |
             MoveTo(..) |
             Add(..) |
             Sub(..) |
