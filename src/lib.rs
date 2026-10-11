@@ -8,6 +8,7 @@ mod stdlib;
 mod runtime;
 mod codegen;
 mod types;
+mod instruction;
 
 use std::{
     rc::Rc,
@@ -16,9 +17,10 @@ use {
     buffer::Buffer,
     tokenizer::Tokenizer,
     parser::Parser,
-    types::*,
+    instruction::Instruction,
+    runtime::Runtime,
+    types::{Type, Value},
     codegen::{CodeGenerator, Scope, Generate},
-    runtime::{Runtime, Instruction},
 };
 
 type Result<T> = std::result::Result<T,
@@ -84,9 +86,10 @@ pub fn run() -> Result<()> {
     generator.do_final()?;
 
     if debug {
-        for func in &generator.functions_final {
+        for (i, func) in generator.functions_final.iter().enumerate() {
+            println!("function {i}:");
             for i in 0..func.len() {
-                println!("{:?}", func[i]);
+                println!("    {:?}", func[i]);
             }
         }
     }

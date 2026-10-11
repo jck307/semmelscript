@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
-    stdlib::*,
     types::*,
+    instruction::Instruction::{self, *},
 };
 
 // macro_rules! get_arg {
@@ -99,49 +99,6 @@ macro_rules! op {
 
 pub type Function = Rc<[Instruction]>;
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub enum Instruction {
-    Debug,
-    Exit,
-    Call(Function),
-    CallInternal(fn(&mut Runtime)),
-    Goto(usize),
-    GotoIf(usize),
-    LoopUpdate(u64, u64, usize),
-    SetStackIndex(usize),
-    Pop,
-    Dup,
-    DupFrom(usize),
-    Swap(usize),
-    MoveTo(usize),
-    RotateLeft(usize),
-    RotateRight(usize),
-    PushNumber8(Type, u8),
-    PushNumber16(Type, u16),
-    PushNumber32(Type, u32),
-    PushNumber64(Type, u64),
-    PushBool(bool),
-    PushString(String),
-    PushType(Type),
-    Add(Type),
-    Sub(Type),
-    Mul(Type),
-    Div(Type),
-    Mod(Type),
-    Equal(Type),
-    Inequal(Type),
-    Greater(Type),
-    GreaterEqual(Type),
-    Less(Type),
-    LessEqual(Type),
-    And,
-    Or,
-    Placeholder,
-}
-
-use Instruction::*;
-
 const STACK_SIZE: usize = 256;
 
 pub struct Stack {
@@ -174,7 +131,7 @@ impl Stack {
     // }
 
     pub fn pop(&mut self) -> Value {
-        self.next_stack_id = self.next_stack_id.saturating_sub(1);
+        self.next_stack_id -= 1;
         self.stack[self.next_stack_id]
     }
 
@@ -187,29 +144,38 @@ impl Stack {
         &mut self.stack[last_id]
     }
 
-    fn dup(&mut self, id: usize) {
-        unsafe {
-            std::ptr::copy(&self.stack[id], &mut self.stack[self.next_stack_id], 1);
-            self.next_stack_id += 1;
-        }
-    }
-
-    fn swap(&mut self, id: usize) {
-        let last_id = self.last_id();
-        self.stack.swap(id, last_id);
-    }
-
-    fn move_to(&mut self, id: usize) {
-        self.next_stack_id -= 1;
-        self.stack[id] = self.stack[self.next_stack_id];
-    }
-
     fn len(&self) -> usize {
         self.next_stack_id
     }
 
     fn last_id(&self) -> usize {
-        self.next_stack_id-1
+        self.next_stack_id - 1
+    }
+
+    fn get_id(&self, rel: usize) -> usize {
+        self.last_id() - rel
+    }
+
+    fn dup(&mut self, rel: usize) {
+        unsafe {
+            std::ptr::copy(
+                &self.stack[self.get_id(rel)],
+                &mut self.stack[self.next_stack_id],
+                1
+            );
+            self.next_stack_id += 1;
+        }
+    }
+
+    fn swap(&mut self, rel: usize) {
+        let last_id = self.last_id();
+        let id = self.get_id(rel);
+        self.stack.swap(id, last_id);
+    }
+
+    fn move_to(&mut self, rel: usize) {
+        self.stack[self.get_id(rel)] = self.stack[self.last_id()];
+        self.pop();
     }
 }
 
@@ -233,7 +199,7 @@ impl Runtime {
         let mut i = 0;
         while i < (*func).len() {
             let instruction = &func[i];
-            // eprintln!("exec instr {i}: {instruction:?}");
+            // eprintln!("exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
             i += 1;
             match instruction {
                 Debug => debug_hexdump(self),
@@ -241,9 +207,8 @@ impl Runtime {
                 Call(func2) => self.call(func2.clone()),
                 CallInternal(internal_func) => internal_func(self),
                 Pop => { self.stack.pop(); }
-                Dup => self.stack.dup(self.stack.last_id()),
                 Swap(id) => self.stack.swap(*id),
-                DupFrom(id) => self.stack.dup(*id),
+                Dup(id) => self.stack.dup(*id),
                 MoveTo(id) => self.stack.move_to(*id),
                 RotateLeft(count) => {
                     let len = self.stack.len();
@@ -304,6 +269,8 @@ impl Runtime {
                         self.stack.peek_mut().U64 += step;
                         if self.stack.peek().U64 != *max {
                             i = *jump_index;
+                        } else {
+                            self.stack.pop();
                         }
                     }
                 }
@@ -325,6 +292,7 @@ impl Runtime {
                 Or => op!(self, Bool, Bool, ||),
                 Placeholder => unreachable!(),
             }
+            // debug_hexdump(self);
         }
     }
 }
@@ -333,7 +301,7 @@ impl Runtime {
 fn debug_hexdump(runtime: &mut Runtime) {
     println!("current stack:");
     for (i, value) in runtime.stack.stack[..runtime.stack.next_stack_id].iter().enumerate() {
-        print!("    {i:>2} ");
+        print!("    {i:<2} ");
         for i in 0..std::mem::size_of::<Value>() {
             unsafe {
                 print!("{:0>2X} ", *(value as *const Value).cast::<u8>().add(i) as u8);
@@ -342,6 +310,8 @@ fn debug_hexdump(runtime: &mut Runtime) {
         println!();
     }
 }
+
+/*
 
 #[test]
 fn simple() {
@@ -436,3 +406,5 @@ fn fib() {
 // fn mod_fib() {
 //     test_fib_mod();
 // }
+
+*/

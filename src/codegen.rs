@@ -3,7 +3,7 @@ use std::{
 };
 use crate::{
     Result,
-    runtime::Instruction,
+    instruction::Instruction,
     types::Type,
     token::Operator,
     node::*,
@@ -17,8 +17,7 @@ macro_rules! block {
             let $scope = &mut $scope.descend();
             $($tt)*
         };
-        $codegen.push(Instruction::SetStackIndex(start_stack_index));
-        $codegen.stack_index = start_stack_index;
+        $codegen.set_stack_index(start_stack_index);
         result
     }}
 }
@@ -37,10 +36,10 @@ pub struct CodeGenerator {
     pub functions_final: Box<[Box<[Instruction]>]>,
     functions: Vec<Vec<Instruction>>,
     current_function_id: usize,
-    stack_index: usize,
     labels: HashMap<Box<str>, usize>,
     gotos: Vec<(Location, Box<str>)>,
     function_calls: Vec<(Location, usize)>,
+    stack_index: usize,
 }
 
 #[derive(Default)]
@@ -94,6 +93,8 @@ impl CodeGenerator {
     }
 
     fn push(&mut self, instr: Instruction) -> Location {
+        self.stack_index =
+            (self.stack_index as isize + instr.get_stack_diff()) as usize;
         self.current_function_mut().push(instr);
         (self.current_function_id, self.instruction_index() - 1)
     }
@@ -107,16 +108,23 @@ impl CodeGenerator {
         replace!(self.functions, location, instr);
     }
 
-    fn call_function(&mut self, scope: &Scope, ident: &Box<str>) -> Result<()> {
+    fn call_function(&mut self, scope: &mut Scope, ident: &Box<str>) -> Result<()> {
         if let Some(builtin) = self.builtins.get(ident) {
             self.push(Instruction::CallInternal(*builtin));
             Ok(())
-        } else if let Ok(id) = scope.get_ident(ident) {
+        } else if let Ok(id) = scope.get_ident(self, ident) {
             let index = self.push(Instruction::Placeholder);
             self.function_calls.push((index, id));
             Ok(())
         } else {
             Err(format!("invalid function: {ident}").into())
+        }
+    }
+
+    fn set_stack_index(&mut self, index: usize) {
+        if self.stack_index != index {
+            self.push(Instruction::SetStackIndex(index));
+            self.stack_index = index;
         }
     }
 
@@ -169,7 +177,6 @@ impl Scope {
 
     fn register(&mut self, codegen: &mut CodeGenerator, ident: &Box<str>) {
         self.register.insert(ident.clone(), codegen.stack_index);
-        codegen.stack_index += 1;
     }
 
     fn register_function(&mut self, ident: &Box<str>, id: usize) {
@@ -180,12 +187,12 @@ impl Scope {
         self.parent.is_null()
     }
 
-    fn get_ident(&self, ident: &Box<str>) -> Result<usize> {
+    fn get_ident(&self, codegen: &mut CodeGenerator, ident: &Box<str>) -> Result<usize> {
         if let Some(value) = self.register.get(ident) {
-            Ok(*value)
+            Ok(codegen.stack_index - *value - 1)
         } else if !self.is_root() {
             unsafe {
-                (*self.parent).get_ident(ident)
+                (*self.parent).get_ident(codegen, ident)
             }
         } else {
             Err(format!("invalid identifier: {ident}").into())
@@ -202,13 +209,16 @@ impl Generate for Node {
             Label(ident) => codegen.register_label(ident),
             Goto(ident) => { codegen.push_goto(ident); }
             Integer(integer) => {
-                codegen.push(Instruction::PushNumber64(Type::I64, integer.cast_unsigned()));
+                codegen.push(
+                    Instruction::PushNumber64(Type::I64, integer.cast_unsigned())
+                );
             }
             String(string) => {
                 codegen.push(Instruction::PushString(string.to_string())); }
             Boolean(boolean) => { codegen.push(Instruction::PushBool(*boolean)); }
             Identifier(ident) => {
-                codegen.push(Instruction::DupFrom(scope.get_ident(ident)?)); }
+                let rel = scope.get_ident(codegen, ident)?;
+                codegen.push(Instruction::Dup(rel)); }
             DefineVariable(ident, node) => {
                 scope.register(codegen, ident);
                 node.generate(codegen, scope)?;
@@ -242,6 +252,7 @@ impl Generate for Node {
             }
             For(ident, iterable, block) => {
                 use Operator::*;
+                let Node::Block(block) = &**block else { unreachable!() };
                 'block: { if let Node::BinaryOp(op) = &**iterable {
                     match op.op {
                         RangeExcl | RangeIncl => {}
@@ -253,19 +264,21 @@ impl Generate for Node {
                     };
                     let b = if op.op == RangeIncl { b + 1 } else { b };
                     scope.register(codegen, ident);
-                    let start_instr_index = block!(codegen, scope, {
-                        codegen.push(Instruction::PushNumber64(
+                    codegen.push(
+                        Instruction::PushNumber64(
                             Type::U64,
                             a.try_into().expect("invalid value")
-                        ));
+                    ));
+                    let start_instr_index = block!(codegen, scope, {
                         let start_instr_index = codegen.instruction_index();
                         block.generate(codegen, scope)?;
                         start_instr_index
                     });
-                    codegen.push(Instruction::LoopUpdate(
-                        b.try_into().expect("invalid value"),
-                        1,
-                        start_instr_index
+                    codegen.push(
+                        Instruction::LoopUpdate(
+                            b.try_into().expect("invalid value"),
+                            1,
+                            start_instr_index
                     ));
                     return Ok(())
                 }}
@@ -273,7 +286,7 @@ impl Generate for Node {
             }
             DefineFunction(ident, _args, block) => {
                 let old_id = codegen.new_function(scope, ident);
-                block.generate(codegen, scope)?;
+                block.generate(codegen, &mut Scope::default())?;
                 codegen.exit_function(old_id);
             }
             other => todo!("{other:?}")
@@ -285,7 +298,14 @@ impl Generate for Node {
 impl Generate for Block {
     fn generate(&self, codegen: &mut CodeGenerator, scope: &mut Scope) -> Result<()> {
         for node in &self.nodes {
+            let start_stack_index = codegen.stack_index;
             node.generate(codegen, scope)?;
+            match node {
+                Node::DefineVariable(..) => {}
+                _ => {
+                    codegen.set_stack_index(start_stack_index);
+                }
+            }
         }
         Ok(())
     }
@@ -297,7 +317,8 @@ impl Generate for BinaryOp {
             Operator::Assign => {
                 self.b.generate(codegen, scope)?;
                 let Node::Identifier(ref ident) = self.a else { panic!() };
-                codegen.push(Instruction::MoveTo(scope.get_ident(ident)?));
+                let rel = scope.get_ident(codegen, ident)?;
+                codegen.push(Instruction::MoveTo(rel));
                 return Ok(())
             }
             // Operator::AddAssign |
