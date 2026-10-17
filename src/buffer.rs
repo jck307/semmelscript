@@ -1,8 +1,7 @@
-use crate::{
-    Result,
+use {
+    crate::Result,
+    std::fmt::Debug,
 };
-
-use std::fmt::Debug;
 
 pub struct Buffer<T> {
     pub buffer: Box<[T]>,

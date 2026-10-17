@@ -210,12 +210,11 @@ impl Parser {
                 return Err("expected identifier".into())
             }
         }
-        let Node::Block(block) = self.read_block(true)?
-            else { unreachable!() };
+        let block = self.read_block(true)?;
         Ok(Node::DefineFunction(
             ident.to_string().into(),
             args,
-            block
+            Box::new(block)
         ))
     }
 

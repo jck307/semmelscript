@@ -1,12 +1,14 @@
-use std::{
-    rc::Rc,
-    any::Any,
-    collections::HashMap,
-};
-
-use crate::{
-    types::*,
-    instruction::Instruction::{self, *},
+use {
+    std::{
+        rc::Rc,
+        any::Any,
+        collections::HashMap,
+    },
+    crate::{
+        types::*,
+        debug::*,
+        instruction::Instruction::{self, *},
+    },
 };
 
 // macro_rules! get_arg {
@@ -110,6 +112,8 @@ pub struct Runtime {
     pub stack: Stack,
     heap: HashMap<usize, Box<dyn Any>>,
     next_heap_id: usize,
+    #[allow(unused)]
+    debug_log: DebugLog,
 }
 
 impl Stack {
@@ -180,8 +184,9 @@ impl Stack {
 }
 
 impl Runtime {
-    pub fn new() -> Self {
+    pub fn new(debug_log: DebugLog) -> Self {
         Self {
+            debug_log,
             stack: Stack::new(),
             heap: HashMap::new(),
             next_heap_id: 0,
@@ -196,12 +201,10 @@ impl Runtime {
 
     pub fn call(&mut self, func: Function) {
         let mut i = 0;
-        const DEBUG: bool = false;
         while i < (*func).len() {
             let instruction = &func[i];
-            if DEBUG {
-                println!("exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
-            }
+            debugln!(self.debug_log,
+                "exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
             i += 1;
             match instruction {
                 Debug => debug_hexdump(self),
@@ -257,9 +260,9 @@ impl Runtime {
                 }
                 PushString(string) => {
                     let ptr = self.heap_add(Box::new(string.clone()));
-                    self.stack.push(Value { Str: ptr as *mut String })
+                    self.stack.push(Value { String: ptr as *mut String })
                 }
-                PushType(ty) => self.stack.push(Value { Type: *ty }),
+                PushType(ty) => self.stack.push(Value { Type: ty }),
                 Goto(index) => { i = *index }
                 GotoIf(index) => {
                     unsafe {
@@ -278,9 +281,6 @@ impl Runtime {
                         }
                     }
                 }
-                SetStackIndex(index) => {
-                    self.stack.next_stack_id = *index;
-                }
                 Add(ty) => op!(self, ty, +),
                 Sub(ty) => op!(self, ty, -),
                 Mul(ty) => op!(self, ty, *),
@@ -296,7 +296,8 @@ impl Runtime {
                 Or => op!(self, Bool, Bool, ||),
                 Placeholder => unreachable!(),
             }
-            if DEBUG {
+            #[cfg(feature = "debug-logging")]
+            {
                 debug_hexdump(self);
             }
         }
@@ -305,15 +306,16 @@ impl Runtime {
 
 #[allow(unused)]
 fn debug_hexdump(runtime: &mut Runtime) {
-    println!("current stack:");
+    debugln!(runtime.debug_log, "current stack:");
     for (i, value) in runtime.stack.stack[..runtime.stack.next_stack_id].iter().enumerate() {
-        print!("    {i:<2} ");
+        debug!(runtime.debug_log, "    {i:<2} ");
         for i in 0..std::mem::size_of::<Value>() {
             unsafe {
-                print!("{:0>2X} ", *(value as *const Value).cast::<u8>().add(i) as u8);
+                debug!(runtime.debug_log,
+                    "{:0>2X} ", *(value as *const Value).cast::<u8>().add(i) as u8);
             }
         }
-        println!();
+        debugln!(runtime.debug_log);
     }
 }
 

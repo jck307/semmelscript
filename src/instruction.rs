@@ -13,7 +13,6 @@ pub enum Instruction {
     Goto(usize),
     GotoIf(usize),
     LoopUpdate(u64, u64, usize),
-    SetStackIndex(usize),
     Pop(usize),
     Dup(usize),
     Swap(usize),
@@ -26,7 +25,7 @@ pub enum Instruction {
     PushNumber64(Type, u64),
     PushBool(bool),
     PushString(String),
-    PushType(Type),
+    PushType(Type), // TODO replace with *const Type
     Add(Type),
     Sub(Type),
     Mul(Type),

@@ -1,17 +1,23 @@
+#[derive(Clone, Default, Debug)]
+#[allow(dead_code)]
+pub struct FunctionSignature(pub Vec<Type>, pub Vec<Type>);
+
 macro_rules! define_types {
     ($($value:ident: $type:ty,)*) => {
         #[allow(dead_code)]
-        #[derive(Clone, Copy, Debug)]
+        #[derive(Clone, Debug)]
         #[repr(u16)]
         pub enum Type {
             $( $value, )*
+            Unknown,
+            Function(FunctionSignature),
         }
 
         #[allow(non_snake_case)]
         #[derive(Clone, Copy)]
         pub union Value {
             $( pub $value: $type, )*
-            pub Type: Type,
+            pub Type: *const Type,
         }
     }
 }
@@ -29,6 +35,6 @@ define_types! {
     F32: f32,
     F64: f64,
     Bool: bool,
-    Str: *mut String,
+    String: *mut String,
     // Ptr: *mut u8,
 }
