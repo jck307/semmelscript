@@ -50,6 +50,7 @@ mod step1 {
     }
 
     pub fn execute(
+            #[allow(unused_variables)]
             debug_log: DebugLog,
             block: &mut Node,
             initial_scope: HashMap<Box<str>, usize>,
