@@ -80,10 +80,10 @@ mod lib {
 
         let [_, path]: [String; 2] = std::env::args()
             .collect::<Vec<_>>().try_into()
-            .unwrap_or_else(|_| panic!("Expected 1 argument!"));
+            .unwrap_or_else(|_| panic!("expected 1 argument!"));
 
         let string = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("Could not read file {path}: {e}"));
+            .unwrap_or_else(|e| panic!("could not read file {path}: {e}"));
 
         let mut block = parse(string)?;
         let builtins = stdlib::get_builtins();
