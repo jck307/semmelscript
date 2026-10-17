@@ -5,3 +5,14 @@ edition = "2024"
 
 [dependencies]
 quick-error = "2.0.1"
+
+[dependencies.chrono]
+version = "0.4.45"
+default-features = false
+features = ["clock"]
+
+[features]
+debug-logging = []
+
+[profile.release]
+debug = true
