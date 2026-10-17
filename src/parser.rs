@@ -127,7 +127,7 @@ impl Parser {
         }
 
         assert!(values.len() == 1);
-        Ok(values[0].clone())
+        Ok(values.remove(0))
     }
 
     fn read_if(&mut self) -> Result<Node> {

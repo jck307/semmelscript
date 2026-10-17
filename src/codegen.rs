@@ -223,15 +223,15 @@ impl Generate for Node {
                         RangeExcl | RangeIncl => {}
                         _ => { break 'block }
                     }
-                    let (a, b) = match (op.a.clone(), op.b.clone()) {
+                    let (a, b) = match (&op.a, &op.b) {
                         (Node::Integer(a), Node::Integer(b)) => (a, b),
                         _ => { break 'block }
                     };
-                    let b = if op.op == RangeIncl { b + 1 } else { b };
+                    let b = if op.op == RangeIncl { b + 1 } else { *b };
                     codegen.push(
                         Instruction::PushNumber64(
                             Type::U64,
-                            a.try_into().expect("invalid value")
+                            a.cast_unsigned()
                     ));
                     let start_instr_index = block!(codegen, block, {
                         let start_instr_index = codegen.instruction_index();

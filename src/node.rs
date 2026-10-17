@@ -8,11 +8,7 @@ use {
     std::mem::ManuallyDrop,
 };
 
-// type Identifier = Box<str>;
-
-// TODO do not clone
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Node {
     Block(Block),
     ParenArgs(Box<Node>, Vec<Node>),
@@ -36,14 +32,14 @@ pub enum Node {
     List(Vec<Node>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct BinaryOp {
     pub op: Operator,
     pub a: Node,
     pub b: Node,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Block {
     pub nodes: Vec<Node>,
     pub return_last: bool,
