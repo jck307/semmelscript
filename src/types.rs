@@ -2,6 +2,16 @@
 #[allow(dead_code)]
 pub struct FunctionSignature(pub Vec<Type>, pub Vec<Type>);
 
+impl FunctionSignature {
+    pub fn num_args(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn num_return_values(&self) -> usize {
+        self.1.len()
+    }
+}
+
 macro_rules! define_types {
     ($($value:ident: $type:ty,)*) => {
         #[allow(dead_code)]

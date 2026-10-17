@@ -42,10 +42,11 @@ pub enum Instruction {
     Placeholder,
 }
 
-use Instruction::*;
+pub type Function = Vec<Instruction>;
 
 impl Instruction {
     pub fn get_stack_diff(&self) -> isize {
+        use Instruction::*;
         match self {
             Pop(count) => -(*count as isize),
             Dup(..) |

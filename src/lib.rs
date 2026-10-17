@@ -26,7 +26,7 @@ mod lib {
             runtime::Runtime,
             analysis::Analysis,
             node::Node,
-            instruction::Instruction,
+            types::Type,
             codegen::{CodeGenerator, Generate},
         },
     };
@@ -35,7 +35,6 @@ mod lib {
         Box<dyn std::error::Error + Send + Sync + 'static>>;
     pub type Integer = i64;
     pub type Float = f64;
-    pub type Function = Vec<Instruction>;
 
     fn parse(string: String) -> Result<Node> {
         let buffer = Buffer::new(string.chars().collect());
@@ -93,10 +92,12 @@ mod lib {
         functions.insert(main_function, Vec::new());
         let mut initial_scope = HashMap::new();
 
-        for (ident, func) in builtins {
+        for (ident, (func, sig)) in builtins {
             let id = analysis.next_id();
+            debugln!(debug_log, "assign id: builtin {ident} -> {id}");
             initial_scope.insert(ident, id);
             functions.insert(id, func);
+            analysis.types.insert(id, Type::Function(sig));
         }
 
         let analysis = analysis::execute(

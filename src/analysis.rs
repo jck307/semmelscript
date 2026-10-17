@@ -102,7 +102,7 @@ mod step1 {
                                 *ident = Identifier::Id(id);
 
                                 match node {
-                                    Node::DefineFunction(_, args, _) => {
+                                    Node::DefineFunction(_, args, block) => {
                                         let mut args_scope = HashMap::new();
                                         let mut sig = FunctionSignature::default();
                                         for (i, ident) in args.iter().enumerate() {
@@ -112,6 +112,10 @@ mod step1 {
                                             sig.0.push(Type::Unknown);
                                             analysis.local_ids.insert(id, i);
                                             analysis.types.insert(id, Type::Unknown);
+                                        }
+                                        let Node::Block(block) = &**block else { panic!() };
+                                        if block.return_last {
+                                            sig.1.push(Type::Unknown);
                                         }
                                         state.scope.push((args.len(), vec![args_scope]));
                                         state.scope_added = true;

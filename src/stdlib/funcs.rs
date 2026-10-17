@@ -26,7 +26,6 @@ pub fn println(runtime: &mut Runtime) {
         let string = runtime.stack.pop().String;
         // print_bytes!(*string, String);
         println!("{}", *string);
-        runtime.stack.push(Value { Null: () });
     }
 }
 

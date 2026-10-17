@@ -4,10 +4,9 @@ use {
         collections::HashMap,
     },
     crate::{
-        Function,
         types::*,
         debug::*,
-        instruction::Instruction::*,
+        instruction::{Function, Instruction::*},
     },
 };
 

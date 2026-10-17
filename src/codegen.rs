@@ -4,13 +4,12 @@ use {
     },
     crate::{
         Result,
-        Function,
-        instruction::Instruction,
-        types::Type,
-        token::Operator,
+        types::*,
         debug::*,
+        token::Operator,
         analysis::Analysis,
         node::{Node, Block, BinaryOp},
+        instruction::{Instruction, Function},
     },
 };
 
@@ -171,18 +170,24 @@ impl Generate for Node {
             }
             DefineVariable(_, node) => { node.generate(codegen)?; }
             ParenArgs(callable, args) => {
+                let Identifier(id) = &**callable
+                    else { panic!("cannot call non-identifier: {callable:?}"); };
+                let id = id.as_id();
+                let sig = match codegen.analysis.types[id] {
+                    Type::Function(ref sig) => sig.clone(),
+                    _ => {
+                        panic!("invalid function: {id}");
+                    }
+                };
+                if args.len() != sig.num_args() {
+                    panic!("function {} expected {} args, got {}", id, sig.num_args(), args.len());
+                }
                 let start_stack_index = codegen.stack_index;
                 for arg in args {
                     arg.generate(codegen)?;
                 }
-                // TODO check function return type
-                codegen.stack_index = start_stack_index + 1;
-                match &**callable {
-                    Identifier(id) => {
-                        codegen.push(Instruction::Call(*id.as_id()));
-                    }
-                    _ => panic!()
-                }
+                codegen.stack_index = start_stack_index + sig.num_return_values();
+                codegen.push(Instruction::Call(*id));
             }
             If(condition, block, ext) => {
                 condition.generate(codegen)?;
@@ -241,15 +246,18 @@ impl Generate for Node {
                 }}
                 todo!("can only iterate over constant ranges, not {iterable:?}")
             }
-            DefineFunction(id, args, block) => {
+            DefineFunction(id, _, block) => {
+                let id = id.as_id();
+                let Type::Function(sig) = codegen.analysis.types[id].clone()
+                    else { panic!() };
                 let Node::Block(block) = &**block else { panic!() };
                 let start_stack_index = codegen.stack_index;
-                let old_id = codegen.new_function(*id.as_id());
-                codegen.stack_index = args.len();
+                let old_id = codegen.new_function(*id);
+                codegen.stack_index = sig.num_args();
                 {
                     block.generate(codegen)?;
                     if block.return_last {
-                        codegen.push(Instruction::RotateRight(args.len() + 1));
+                        codegen.push(Instruction::RotateRight(sig.num_args() + 1));
                     }
                     let popcount = 
                         if block.return_last { codegen.stack_index.saturating_sub(1) }
