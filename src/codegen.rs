@@ -100,7 +100,7 @@ impl CodeGenerator {
         self.stack_index =
             (self.stack_index as isize + instr.get_stack_diff()) as usize;
         if self.current_function_id == 0 {
-            debugln!(self.debug_log, "{instr:?}: {}", self.stack_index);
+            debugln!(self.debug_log, "{instr:?}, index: {}", self.stack_index);
         }
         self.current_function_mut().push(instr);
         (self.current_function_id, self.instruction_index() - 1)
@@ -194,7 +194,7 @@ impl Generate for Node {
             }
             If(condition, block, ext) => {
                 condition.generate(codegen)?;
-                let placeholder_index = codegen.push(Instruction::Placeholder);
+                let placeholder_index = codegen.push(Instruction::GotoIf(0));
                 let Block(block) = &**block else { panic!() };
                 block!(codegen, block, {
                     block.generate(codegen)?;
@@ -275,17 +275,17 @@ impl Generate for Node {
 
 impl Generate for Block {
     fn generate(&self, codegen: &mut CodeGenerator) -> Result<()> {
-        for (_i, node) in self.nodes.iter().enumerate() {
-            let _start_stack_index = codegen.stack_index;
+        for (i, node) in self.nodes.iter().enumerate() {
+            let start_stack_index = codegen.stack_index;
             node.generate(codegen)?;
             match node {
                 Node::DefineVariable(..) |
                 Node::DefineFunction(..)
                     => {}
                 _ => {
-                    // if i != self.nodes.len() - 1 {
-                    //     codegen.pop(codegen.stack_index - start_stack_index);
-                    // }
+                    if i != self.nodes.len() - 1 {
+                        codegen.pop(codegen.stack_index - start_stack_index);
+                    }
                 }
             }
         }

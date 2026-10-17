@@ -69,6 +69,7 @@ impl Instruction {
             GreaterEqual(..) |
             Less(..) |
             LessEqual(..) |
+            GotoIf(..) |
             And |
             Or
                 => -1,

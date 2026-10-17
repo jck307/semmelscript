@@ -85,6 +85,8 @@ mod lib {
         let string = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("could not read file {path}: {e}"));
 
+        debugln!(debug_log, "{path}");
+
         let mut block = parse(string)?;
         let builtins = stdlib::get_builtins();
         let mut analysis = Analysis::default();
@@ -98,7 +100,12 @@ mod lib {
             functions.insert(id, func);
         }
 
-        let analysis = analysis::execute(&mut block, initial_scope, analysis)?;
+        let analysis = analysis::execute(
+            debug_log.clone(),
+            &mut block,
+            initial_scope,
+            analysis
+        )?;
 
         debugln!(debug_log, "{analysis:#?}");
 

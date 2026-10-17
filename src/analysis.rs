@@ -6,6 +6,7 @@ use {
     },
     crate::{
         Result,
+        debug::*,
         traverse::TraverseMode,
         types::{Type, FunctionSignature},
         node::{Node, Identifier},
@@ -28,12 +29,13 @@ impl Analysis {
 }
 
 pub fn execute(
+        debug_log: DebugLog,
         block: &mut Node,
         initial_scope: HashMap<Box<str>, usize>,
         analysis: Analysis) -> Result<Analysis> {
 
     let analysis = Rc::new(RefCell::new(analysis));
-    step1::execute(block, initial_scope, analysis.clone())?;
+    step1::execute(debug_log, block, initial_scope, analysis.clone())?;
     let analysis = analysis.take();
     Ok(analysis)
 }
@@ -43,17 +45,18 @@ mod step1 {
 
     #[derive(Default, Debug)]
     struct State {
-        scope: Vec<(usize, HashMap<Box<str>, usize>)>,
-        function: bool,
+        scope: Vec<(usize, Vec<HashMap<Box<str>, usize>>)>,
+        scope_added: bool,
     }
 
     pub fn execute(
+            debug_log: DebugLog,
             block: &mut Node,
             initial_scope: HashMap<Box<str>, usize>,
             analysis: Rc<RefCell<Analysis>>) -> Result<()> {
 
         let mut state = State::default();
-        state.scope.push((0, initial_scope));
+        state.scope.push((0, vec![initial_scope]));
         let state = Rc::new(RefCell::new(state));
 
         {
@@ -63,18 +66,24 @@ mod step1 {
                     let mut state = (*state).borrow_mut();
                     let mut analysis = (*analysis).borrow_mut();
 
+                    let last_func = state.scope.len()-1;
+
                     if let Node::Block(..) = node {
-                        match (&mode, state.function) {
+                        match (&mode, state.scope_added) {
                             (Start, false) => {
-                                state.scope.push((0, HashMap::new()));
+                                state.scope[last_func].1.push(HashMap::new());
                             }
                             (Start, true) => {
-                                state.function = false;
+                                state.scope_added = false;
                             }
                             (End, _) => {
-                                state.scope.pop();
+                                state.scope[last_func].1.pop();
                             }
                         }
+                    }
+
+                    if let Node::DefineFunction(..) = node && let End = mode {
+                        state.scope.pop();
                     }
 
                     if let Start = mode {
@@ -82,11 +91,12 @@ mod step1 {
                             Node::DefineVariable(ident, ..) |
                             Node::DefineFunction(ident, ..) |
                             Node::For(ident, ..) => {
+                                let last_block = state.scope[last_func].1.len()-1;
                                 let id = analysis.next_id();
-                                let last = state.scope.len()-1;
                                 {
                                     let ident = ident.as_string().clone();
-                                    state.scope[last].1.insert(ident, id);
+                                    debugln!(debug_log, "assign id: {} -> {}", ident, id);
+                                    state.scope[last_func].1[last_block].insert(ident, id);
                                 }
                                 *ident = Identifier::Id(id);
 
@@ -102,20 +112,20 @@ mod step1 {
                                             analysis.local_ids.insert(id, i);
                                             analysis.types.insert(id, Type::Unknown);
                                         }
-                                        state.scope.push((args.len(), args_scope));
-                                        state.function = true;
+                                        state.scope.push((args.len(), vec![args_scope]));
+                                        state.scope_added = true;
                                         analysis.types.insert(id, Type::Function(sig));
                                     }
                                     _ => {
-                                        let local_id = state.scope[last].0;
-                                        state.scope[last].0 += 1;
+                                        let local_id = state.scope[last_func].0;
+                                        state.scope[last_func].0 += 1;
                                         analysis.local_ids.insert(id, local_id);
                                         analysis.types.insert(id, Type::Unknown);
                                     }
                                 }
                             }
                             Node::Identifier(ident) => {
-                                for (_, idents) in state.scope.iter() {
+                                for idents in state.scope[last_func].1.iter() {
                                     if let Some(id) = idents.get(ident.as_string()) {
                                         *ident = Identifier::Id(*id);
                                         return Ok(())
