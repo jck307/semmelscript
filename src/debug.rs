@@ -36,10 +36,12 @@ pub use crate::{debug, debugln};
 pub fn open_file() -> Result<DebugLog> {
     #[cfg(feature = "debug-logging")]
     {
+        use std::io::Write;
         let time = chrono::Local::now();
         let mut file = File::create("semmel-debug.log")?;
         writeln!(file, "SEMMELSCRIPT DEBUG LOG, {}", time.format("%Y-%m-%d %H:%M:%S"))?;
         return Ok(Rc::new(MaybeUninit::new(file)))
     }
+    #[allow(unreachable_code)]
     return Ok(Rc::new(MaybeUninit::zeroed()))
 }
