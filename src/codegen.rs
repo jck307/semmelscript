@@ -4,6 +4,7 @@ use {
     },
     crate::{
         Result,
+        Function,
         instruction::Instruction,
         types::Type,
         token::Operator,
@@ -28,11 +29,10 @@ macro_rules! block {
 type Location = (usize, usize);
 
 pub struct CodeGenerator {
-    pub functions: HashMap<usize, Vec<Instruction>>,
+    pub functions: HashMap<usize, Function>,
     current_function_id: usize,
     labels: HashMap<Box<str>, usize>,
     gotos: Vec<(Location, Box<str>)>,
-    function_calls: Vec<(Location, usize)>,
     stack_index: usize,
     analysis: Analysis,
     #[allow(unused)]
@@ -54,7 +54,7 @@ pub trait Generate {
 impl CodeGenerator {
     pub fn new(
             debug_log: DebugLog,
-            functions: HashMap<usize, Vec<Instruction>>,
+            functions: HashMap<usize, Function>,
             analysis: Analysis) -> Self {
 
         Self {
@@ -64,7 +64,6 @@ impl CodeGenerator {
             current_function_id: 0,
             labels: HashMap::new(),
             gotos: Vec::new(),
-            function_calls: Vec::new(),
             stack_index: 0,
         }
     }
@@ -73,11 +72,11 @@ impl CodeGenerator {
         self.current_function().len()
     }
 
-    fn current_function(&self) -> &Vec<Instruction> {
+    fn current_function(&self) -> &Function {
         &self.functions[&self.current_function_id]
     }
 
-    fn current_function_mut(&mut self) -> &mut Vec<Instruction> {
+    fn current_function_mut(&mut self) -> &mut Function {
         self.functions.get_mut(&self.current_function_id).unwrap()
     }
 
@@ -135,13 +134,8 @@ impl CodeGenerator {
             self.replace(location, Instruction::Goto(self.get_label(&label)?));
         }
 
-        for (location, id) in self.function_calls.clone() {
-            // TODO fix!!!
-            self.replace(location, Instruction::Call(self.functions[&id].clone().into()));
-        }
-
         for (_, instructions) in &self.functions {
-            for instruction in instructions {
+            for instruction in &**instructions {
                 if let Instruction::Placeholder = instruction {
                     panic!();
                 }
@@ -185,9 +179,7 @@ impl Generate for Node {
                 codegen.stack_index = start_stack_index + 1;
                 match &**callable {
                     Identifier(id) => {
-                        let id = id.as_id();
-                        let index = codegen.push(Instruction::Placeholder);
-                        codegen.function_calls.push((index, *id));
+                        codegen.push(Instruction::Call(*id.as_id()));
                     }
                     _ => panic!()
                 }

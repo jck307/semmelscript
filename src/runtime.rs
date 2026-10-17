@@ -1,13 +1,13 @@
 use {
     std::{
-        rc::Rc,
         any::Any,
         collections::HashMap,
     },
     crate::{
+        Function,
         types::*,
         debug::*,
-        instruction::Instruction::{self, *},
+        instruction::Instruction::*,
     },
 };
 
@@ -66,9 +66,9 @@ macro_rules! op {
     // set $result to Bool for binary operators
     (calc $self:ident, $type:ident, ==) => {{ op!($self, $type, Bool, ==) }};
     (calc $self:ident, $type:ident, !=) => {{ op!($self, $type, Bool, !=) }};
-    (calc $self:ident, $type:ident, <)  => {{ op!($self, $type, Bool, <) }};
+    (calc $self:ident, $type:ident, <)  => {{ op!($self, $type, Bool, <)  }};
     (calc $self:ident, $type:ident, <=) => {{ op!($self, $type, Bool, <=) }};
-    (calc $self:ident, $type:ident, >)  => {{ op!($self, $type, Bool, >) }};
+    (calc $self:ident, $type:ident, >)  => {{ op!($self, $type, Bool, >)  }};
     (calc $self:ident, $type:ident, >=) => {{ op!($self, $type, Bool, >=) }};
 
     // set $result to $type for everything else
@@ -99,8 +99,6 @@ macro_rules! op {
     // }};
 }
 
-pub type Function = Rc<[Instruction]>;
-
 const STACK_SIZE: usize = 256;
 
 pub struct Stack {
@@ -112,6 +110,7 @@ pub struct Runtime {
     pub stack: Stack,
     heap: HashMap<usize, Box<dyn Any>>,
     next_heap_id: usize,
+    functions: HashMap<usize, Function>,
     #[allow(unused)]
     debug_log: DebugLog,
 }
@@ -184,9 +183,10 @@ impl Stack {
 }
 
 impl Runtime {
-    pub fn new(debug_log: DebugLog) -> Self {
+    pub fn new(debug_log: DebugLog, functions: HashMap<usize, Function>) -> Self {
         Self {
             debug_log,
+            functions,
             stack: Stack::new(),
             heap: HashMap::new(),
             next_heap_id: 0,
@@ -199,17 +199,17 @@ impl Runtime {
         Box::as_mut_ptr(&mut self.heap.get_mut(&id).unwrap()) as *mut u8
     }
 
-    pub fn call(&mut self, func: Function) {
+    pub fn call(&mut self, id: usize) {
         let mut i = 0;
-        while i < (*func).len() {
-            let instruction = &func[i];
+        while i < self.functions[&id].len() {
+            let instruction = &self.functions[&id][i];
             debugln!(self.debug_log,
                 "exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
             i += 1;
             match instruction {
                 Debug => debug_hexdump(self),
                 Exit => { break }
-                Call(func2) => self.call(func2.clone()),
+                Call(id) => self.call(*id),
                 CallInternal(internal_func) => internal_func(self),
                 Pop(count) => { 
                     self.stack.next_stack_id -= count;

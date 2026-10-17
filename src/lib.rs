@@ -13,12 +13,7 @@ mod analysis;
 mod codegen;
 mod debug;
 
-pub use lib::{
-    Result,
-    Integer,
-    Float,
-    run,
-};
+pub use lib::*;
 
 mod lib {
     use {
@@ -31,6 +26,7 @@ mod lib {
             runtime::Runtime,
             analysis::Analysis,
             node::Node,
+            instruction::Instruction,
             codegen::{CodeGenerator, Generate},
         },
     };
@@ -39,6 +35,7 @@ mod lib {
         Box<dyn std::error::Error + Send + Sync + 'static>>;
     pub type Integer = i64;
     pub type Float = f64;
+    pub type Function = Vec<Instruction>;
 
     fn parse(string: String) -> Result<Node> {
         let buffer = Buffer::new(string.chars().collect());
@@ -124,8 +121,8 @@ mod lib {
             }
         }
 
-        let mut runtime = Runtime::new(debug_log.clone());
-        runtime.call(generator.functions[&0].clone().into());
+        let mut runtime = Runtime::new(debug_log.clone(), generator.functions);
+        runtime.call(0);
 
         Ok(())
     }

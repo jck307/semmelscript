@@ -6,12 +6,13 @@ pub use funcs::*;
 use {
     std::collections::HashMap,
     crate::{
+        Function,
         instruction::Instruction,
         types::Type,
     },
 };
 
-pub type Builtins = HashMap<Box<str>, Vec<Instruction>>;
+pub type Builtins = HashMap<Box<str>, Function>;
 
 macro_rules! add {
     ($hashmap:expr, [$($name:ident($($arg:ident),*),)*]) => {{

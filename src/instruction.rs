@@ -4,11 +4,11 @@ use crate::{
 };
 
 #[allow(dead_code)]
-#[derive(Debug, Clone)] // TODO remove Clone
+#[derive(Debug)]
 pub enum Instruction {
     Debug,
     Exit,
-    Call(Function),
+    Call(usize),
     CallInternal(fn(&mut Runtime)),
     Goto(usize),
     GotoIf(usize),
