@@ -88,7 +88,9 @@ mod lib {
         let builtins = stdlib::get_builtins();
         let mut analysis = Analysis::default();
         let mut functions = HashMap::new();
-        functions.insert(analysis.next_id(), Vec::new());
+        let main_function = analysis.next_id();
+        assert_eq!(main_function, 0);
+        functions.insert(main_function, Vec::new());
         let mut initial_scope = HashMap::new();
 
         for (ident, func) in builtins {
@@ -122,7 +124,7 @@ mod lib {
         }
 
         let mut runtime = Runtime::new(debug_log.clone(), generator.functions);
-        runtime.call(0);
+        runtime.call(main_function);
 
         Ok(())
     }
