@@ -88,26 +88,26 @@ impl From<String> for Identifier {
 // }
 
 impl Node {
-    pub fn name(&self) -> &'static str {
-        match self {
-            Node::Block(..) => "Block",
-            Node::ParenArgs(..) => "ParenArgs",
-            Node::BinaryOp(..) => "BinaryOp",
-            Node::DefineVariable(..) => "DefineVariable",
-            Node::DefineFunction(..) => "DefineFunction",
-            Node::If(..) => "If",
-            Node::For(..) => "For",
-            Node::While(..) => "While",
-            Node::Label(..) => "Label",
-            Node::Goto(..) => "Goto",
-            Node::Identifier(..) => "Identifier",
-            Node::String(..) => "String",
-            Node::Integer(..) => "Integer",
-            Node::Float(..) => "Float",
-            Node::Boolean(..) => "Boolean",
-            Node::List(..) => "List",
-        }
-    }
+    // pub fn name(&self) -> &'static str {
+    //     match self {
+    //         Node::Block(..) => "Block",
+    //         Node::ParenArgs(..) => "ParenArgs",
+    //         Node::BinaryOp(..) => "BinaryOp",
+    //         Node::DefineVariable(..) => "DefineVariable",
+    //         Node::DefineFunction(..) => "DefineFunction",
+    //         Node::If(..) => "If",
+    //         Node::For(..) => "For",
+    //         Node::While(..) => "While",
+    //         Node::Label(..) => "Label",
+    //         Node::Goto(..) => "Goto",
+    //         Node::Identifier(..) => "Identifier",
+    //         Node::String(..) => "String",
+    //         Node::Integer(..) => "Integer",
+    //         Node::Float(..) => "Float",
+    //         Node::Boolean(..) => "Boolean",
+    //         Node::List(..) => "List",
+    //     }
+    // }
 
     // pub fn nodetype(&self) -> NodeType {
     //     use NodeType::*;
