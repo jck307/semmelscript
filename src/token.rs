@@ -2,36 +2,50 @@
 
 use crate::*;
 
-macro_rules! string_enum {
-    ($name:ident, $($field:ident = $str:expr,)*) => {
-        #[derive(Debug, Clone, PartialEq)]
-        pub enum $name {
-            $(
-                $field,
-            )*
-        }
-
-        impl $name {
-            pub fn try_from_str(string: &str) -> Option<Self> {
-                match string {
-                    $(
-                        $str => Some(Self::$field),
-                    )*
-                    _ => None
-                }
+macro_rules! define_enums {
+    (
+        $($name:ident { $($field:ident = $str:expr,)* })*
+    ) => {
+        $(
+            #[derive(Debug, Clone, PartialEq)]
+            pub enum $name {
+                $(
+                    $field,
+                )*
             }
 
-            // pub fn as_str(&self) -> &'static str {
-            //     match self {
-            //         $(
-            //             Self::$field => $str,
-            //         )*
-            //     }
-            // }
+            impl $name {
+                pub fn try_from_str(string: &str) -> Option<Self> {
+                    match string {
+                        $(
+                            $str => Some(Self::$field),
+                        )*
+                        _ => None
+                    }
+                }
 
-            pub const ARRAY: &[(Self, &'static str)] = &[$(
-                (Self::$field, $str),
-            )*];
+                // pub fn as_str(&self) -> &'static str {
+                //     match self {
+                //         $(
+                //             Self::$field => $str,
+                //         )*
+                //     }
+                // }
+
+                pub const ARRAY: &[(Self, &'static str)] = &[$(
+                    (Self::$field, $str),
+                )*];
+            }
+        )*
+
+        pub mod consts {
+            #![allow(non_upper_case_globals)]
+            $(
+                $(
+                    pub const $field: super::Token
+                        = super::Token::$name(super::$name::$field);
+                )*
+            )*
         }
     }
 }
@@ -47,69 +61,71 @@ pub enum Token {
     Operator(Operator),
 }
 
-string_enum! { Keyword,
-    Let = "let",
-    If = "if",
-    Else = "else",
-    Elif = "elif",
-    Func = "func",
-    True = "true",
-    False = "false",
-    For = "for",
-    While = "while",
-    In = "in",
-    Goto = "goto",
-}
+define_enums! {
+    Keyword {
+        Let = "let",
+        If = "if",
+        Else = "else",
+        Elif = "elif",
+        Func = "func",
+        True = "true",
+        False = "false",
+        For = "for",
+        While = "while",
+        In = "in",
+        Goto = "goto",
+    }
 
-string_enum! { Operator,
-    // misc
-    ParenOpen = "(",
-    ParenClose = ")",
-    BracketOpen = "[",
-    BracketClose = "]",
-    BraceOpen = "{",
-    BraceClose = "}",
-    Dot = ".",
-    Comma = ",",
-    Colon = ":",
-    Semicolon = ";",
-    Dollar = "$",
-    Exclamation = "!",
-    Question = "?",
-    Hashtag = "#",
+    Operator {
+        // misc
+        ParenOpen = "(",
+        ParenClose = ")",
+        BracketOpen = "[",
+        BracketClose = "]",
+        BraceOpen = "{",
+        BraceClose = "}",
+        Dot = ".",
+        Comma = ",",
+        Colon = ":",
+        Semicolon = ";",
+        Dollar = "$",
+        Exclamation = "!",
+        Question = "?",
+        Hashtag = "#",
 
-    // math
-    Add = "+",
-    Sub = "-",
-    Mul = "*",
-    Div = "/",
-    Pow = "^",
-    Mod = "%",
+        // math
+        Add = "+",
+        Sub = "-",
+        Mul = "*",
+        Div = "/",
+        Pow = "^",
+        Mod = "%",
 
-    // compare
-    Equal = "==",
-    Inequal = "!=",
-    Less = "<",
-    LessEqual = "<=",
-    Greater = ">",
-    GreaterEqual = ">=",
+        // compare
+        Equal = "==",
+        Inequal = "!=",
+        Less = "<",
+        LessEqual = "<=",
+        Greater = ">",
+        GreaterEqual = ">=",
 
-    // logic
-    And = "&&",
-    Or = "||",
+        // logic
+        And = "&&",
+        Or = "||",
 
-    // ranges
-    RangeExcl = "..",
-    RangeIncl = "..=",
+        // ranges
+        RangeExcl = "..",
+        RangeIncl = "..=",
 
-    // assign
-    Assign = "=",
-    AddAssign = "+=",
-    SubAssign = "-=",
-    MulAssign = "*=",
-    DivAssign = "/=",
-    PowAssign = "^⁼",
-    ModAssign = "%=",
+        // assign
+        Assign = "=",
+        AddAssign = "+=",
+        SubAssign = "-=",
+        MulAssign = "*=",
+        DivAssign = "/=",
+        PowAssign = "^⁼",
+        ModAssign = "%=",
+    }
 }
 
 use Operator::*;

@@ -1,8 +1,10 @@
+#![allow(non_upper_case_globals)]
+
 use crate::{
     Result,
     buffer::Buffer,
     node::*,
-    token::{*, Keyword::*},
+    token::{*, consts::*},
 };
 
 pub struct Parser {
@@ -23,25 +25,25 @@ impl Parser {
             Token::Float(float) => Node::Float(*float),
             Token::Boolean(boolean) => Node::Boolean(*boolean),
             Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
-            Token::Operator(Operator::ParenOpen) => {
+            &ParenOpen => {
                 let expr = self.read_expression()?;
-                self.tokens.expect(&Token::Operator(Operator::ParenClose))?;
+                self.tokens.expect(&ParenClose)?;
                 expr
             }
-            Token::Operator(Operator::BracketOpen) =>
+            &BracketOpen =>
                 Node::List(self.read_args(Operator::BracketClose)?),
-            Token::Operator(Operator::BraceOpen) => {
+            &BraceOpen => {
                 self.tokens.back();
                 self.read_block(true)?
             },
-            Token::Keyword(Keyword::True) => Node::Boolean(true),
-            Token::Keyword(Keyword::False) => Node::Boolean(false),
+            &True => Node::Boolean(true),
+            &False => Node::Boolean(false),
             token => { return Err(format!("expected value (found {token:?})").into()) }
         };
 
         while let Ok(token) = self.tokens.peek() {
             match token {
-                Token::Operator(Operator::ParenOpen) => {
+                &ParenOpen => {
                     self.tokens.step();
                     value = Node::ParenArgs(
                         Box::new(value),
@@ -69,7 +71,7 @@ impl Parser {
             args.push(self.read_expression()?);
             let next = self.tokens.next()?;
             match next {
-                Token::Operator(Operator::Comma) => {
+                &Comma => {
                     continue
                 }
                 Token::Operator(op) => {
@@ -134,20 +136,16 @@ impl Parser {
         let condition = self.read_expression()?;
         let block = self.read_block(true)?;
 
-        let ext: Option<Box<Node>> = if let Ok(Token::Keyword(kw)) = self.tokens.peek() {
-            match kw {
-                Keyword::Else => {
-                    self.tokens.step();
-                    Some(Box::new(self.read_block(true)?))
-                }
-                Keyword::Elif => {
-                    self.tokens.step();
-                    Some(Box::new(self.read_if()?))
-                }
-                _ => None
+        let ext: Option<Box<Node>> = match self.tokens.peek() {
+            Ok(&Else) => {
+                self.tokens.step();
+                Some(Box::new(self.read_block(true)?))
             }
-        } else {
-            None
+            Ok(&Elif) => {
+                self.tokens.step();
+                Some(Box::new(self.read_if()?))
+            }
+            _ => None
         };
 
         Ok(Node::If(Box::new(condition), Box::new(block), ext))
@@ -163,7 +161,7 @@ impl Parser {
 
     fn read_for(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&Token::Keyword(Keyword::In))?;
+        self.tokens.expect(&In)?;
         let expr = self.read_expression()?;
         let block = self.read_block(true)?;
         Ok(Node::For(
@@ -184,9 +182,9 @@ impl Parser {
 
     fn read_let(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&Token::Operator(Operator::Assign))?;
+        self.tokens.expect(&Assign)?;
         let expr = self.read_expression()?;
-        self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
+        self.tokens.expect(&Semicolon)?;
         Ok(Node::DefineVariable(
             ident.to_string().into(),
             Box::new(expr)
@@ -195,13 +193,13 @@ impl Parser {
 
     fn read_goto(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
+        self.tokens.expect(&Semicolon)?;
         Ok(Node::Goto(ident.into()))
     }
 
     fn read_func(&mut self) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&Token::Operator(Operator::ParenOpen))?;
+        self.tokens.expect(&ParenOpen)?;
         let mut args = Vec::new();
         for arg in self.read_args(Operator::ParenClose)? {
             if let Node::Identifier(ident) = arg {
@@ -223,12 +221,12 @@ impl Parser {
         let mut return_last = false;
 
         if inner {
-            self.tokens.expect(&Token::Operator(Operator::BraceOpen))?;
+            self.tokens.expect(&BraceOpen)?;
         }
 
         loop {
             match self.tokens.peek().cloned() {
-                Ok(Token::Operator(Operator::BraceClose)) => {
+                Ok(BraceClose) => {
                     if inner {
                         self.tokens.step();
                         break
@@ -236,10 +234,11 @@ impl Parser {
                         return Err("unexpected '}'".into())
                     }
                 }
-                Ok(Token::Operator(Operator::BraceOpen)) => {
+                Ok(BraceOpen) => {
                     nodes.push(self.read_block(true)?);
                 }
                 Ok(Token::Keyword(kw)) => {
+                    use Keyword::*;
                     self.tokens.step();
                     nodes.push(match kw {
                         If => self.read_if()?,
@@ -252,16 +251,16 @@ impl Parser {
                             => { return Err("unexpected keyword".into()) }
                     });
                 }
-                Ok(Token::Operator(Operator::Colon)) => {
+                Ok(Colon) => {
                     self.tokens.step();
                     nodes.push(Node::Label(self.read_ident_as_string()?.into()));
-                    self.tokens.expect(&Token::Operator(Operator::Semicolon))?;
+                    self.tokens.expect(&Semicolon)?;
                 }
                 Ok(_) => {
                     nodes.push(self.read_expression()?);
                     match self.tokens.peek()? {
-                        Token::Operator(Operator::Semicolon) => self.tokens.step(),
-                        Token::Operator(Operator::BraceClose) => {
+                        &Semicolon => self.tokens.step(),
+                        &BraceClose => {
                             return_last = true;
                         }
                         token => { return Err(format!(
