@@ -133,22 +133,34 @@ impl Parser {
     }
 
     fn read_if(&mut self) -> Result<Node> {
-        let condition = self.read_expression()?;
-        let block = self.read_block(true)?;
+        let mut statements = vec![(
+            Box::new(self.read_expression()?),
+            Box::new(self.read_block(true)?),
+        )];
 
-        let ext: Option<Box<Node>> = match self.tokens.peek() {
-            Ok(&Else) => {
-                self.tokens.step();
-                Some(Box::new(self.read_block(true)?))
-            }
-            Ok(&Elif) => {
-                self.tokens.step();
-                Some(Box::new(self.read_if()?))
-            }
-            _ => None
-        };
+        let mut end = None;
 
-        Ok(Node::If(Box::new(condition), Box::new(block), ext))
+        loop {
+            match self.tokens.peek() {
+                Ok(&Elif) => {
+                    self.tokens.step();
+                    statements.push((
+                        Box::new(self.read_expression()?),
+                        Box::new(self.read_block(true)?),
+                    ));
+                }
+                Ok(&Else) => {
+                    self.tokens.step();
+                    end = Some(Box::new(self.read_block(true)?));
+                    break
+                }
+                _ => {
+                    break
+                }
+            }
+        }
+
+        Ok(Node::If(statements, end))
     }
 
     fn read_ident_as_string(&mut self) -> Result<String> {

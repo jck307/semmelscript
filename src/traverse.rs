@@ -33,11 +33,14 @@ impl Node {
             }
             DefineVariable(_, value) => value.traverse(func)?,
             DefineFunction(_, _, block) => block.traverse(func)?,
-            If(condition, block, ext) => {
-                condition.traverse(func)?;
-                block.traverse(func)?;
-                if let Some(ext) = ext {
-                    ext.traverse(func)?;
+            If(statements, end) => {
+                for (condition, block) in statements {
+                    condition.traverse(func)?;
+                    block.traverse(func)?;
+                }
+
+                if let Some(block) = end {
+                    block.traverse(func)?;
                 }
             }
             For(_, iterable, block) => {

@@ -1,13 +1,11 @@
-#![allow(unused)]
-
 use {
     crate::{
         *,
         token::Operator,
     },
-    std::mem::ManuallyDrop,
 };
 
+#[allow(unused)]
 #[derive(Debug)]
 pub enum Node {
     Block(Block),
@@ -17,7 +15,7 @@ pub enum Node {
     // Statements
     DefineVariable(Identifier, Box<Node>),
     DefineFunction(Identifier, Vec<Identifier>, Box<Node>),
-    If(Box<Node>, Box<Node>, Option<Box<Node>>),
+    If(Vec<(Box<Node>, Box<Node>)>, Option<Box<Node>>),
     For(Identifier, Box<Node>, Box<Node>),
     While(Box<Node>, Box<Node>),
     Label(Box<str>),

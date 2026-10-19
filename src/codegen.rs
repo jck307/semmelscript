@@ -180,7 +180,8 @@ impl Generate for Node {
                     }
                 };
                 if args.len() != sig.num_args() {
-                    panic!("function {} expected {} args, got {}", id, sig.num_args(), args.len());
+                    panic!("function {} expected {} args, got {}",
+                        id, sig.num_args(), args.len());
                 }
                 let start_stack_index = codegen.stack_index;
                 for arg in args {
@@ -189,27 +190,30 @@ impl Generate for Node {
                 codegen.stack_index = start_stack_index + sig.num_return_values();
                 codegen.push(Instruction::Call(*id));
             }
-            If(condition, block, ext) => {
-                condition.generate(codegen)?;
-                let placeholder_index = codegen.push(Instruction::GotoIf(0));
-                let Block(block) = &**block else { panic!() };
-                block!(codegen, block, {
+            If(statements, end) => {
+                let mut placeholder_indexes = Vec::new();
+
+                for (condition, block) in statements {
+                    condition.generate(codegen)?;
+                    let placeholder_index = codegen.push(Instruction::GotoIf(0));
+                    let Block(block) = &**block else { panic!() };
+                    block!(codegen, block, {
+                        block.generate(codegen)?;
+                    });
+                    placeholder_indexes.push(codegen.push(Instruction::Placeholder));
+                    codegen.replace(
+                        placeholder_index,
+                        Instruction::GotoIf(codegen.instruction_index())
+                    );
+                }
+
+                if let Some(block) = end {
                     block.generate(codegen)?;
-                });
-                codegen.replace(
-                    placeholder_index,
-                    Instruction::GotoIf(codegen.instruction_index())
-                );
-                if let Some(ext) = ext {
-                    match &**ext {
-                        Block(block) => {
-                        block!(codegen, block, {
-                            block.generate(codegen)?;
-                        });
-                        }
-                        If(..) => ext.generate(codegen)?,
-                        _ => unreachable!()
-                    }
+                }
+
+                let current_index = codegen.instruction_index();
+                for index in placeholder_indexes {
+                    codegen.replace(index, Instruction::Goto(current_index));
                 }
             }
             For(_ident, iterable, block) => {

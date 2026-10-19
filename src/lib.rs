@@ -72,8 +72,6 @@ mod lib {
     }
 
     pub fn run() -> Result<()> {
-        let debug_log = debug::open_file().expect("could not open log file");
-
         let [_, path]: [String; 2] = std::env::args()
             .collect::<Vec<_>>().try_into()
             .unwrap_or_else(|_| panic!("expected 1 argument!"));
@@ -81,9 +79,12 @@ mod lib {
         let string = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("could not read file {path}: {e}"));
 
+        let debug_log = debug::open_file().expect("could not open log file");
         debugln!(debug_log, "{path}");
 
         let mut block = parse(string)?;
+        debugln!(debug_log, "{block:#?}");
+
         let builtins = stdlib::get_builtins();
         let mut analysis = Analysis::default();
         let mut functions = HashMap::new();
@@ -119,7 +120,7 @@ mod lib {
             for (i, func) in &generator.functions {
                 debugln!(debug_log, "function {i}:");
                 for i in 0..func.len() {
-                    debugln!(debug_log, "    {:?}", func[i]);
+                    debugln!(debug_log, "    {i}: {:?}", func[i]);
                 }
             }
         }
