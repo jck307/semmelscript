@@ -27,6 +27,7 @@ mod lib {
             analysis::Analysis,
             node::Node,
             types::Type,
+            debug::DebugLog,
             codegen::{CodeGenerator, Generate},
         },
     };
@@ -36,10 +37,11 @@ mod lib {
     pub type Integer = i64;
     pub type Float = f64;
 
-    fn parse(string: String) -> Result<Node> {
+    fn parse(debug_log: DebugLog, string: String) -> Result<Node> {
         let buffer = Buffer::new(string.chars().collect());
         let mut tokenizer = Tokenizer::new(buffer);
         let (tokens, metas) = tokenizer.tokenize()?;
+        debugln!(debug_log, "{:#?}", tokens);
 
         // if debug {
         //     println!("tokens:");
@@ -50,6 +52,7 @@ mod lib {
         // }
 
         let tokens = Buffer::new(tokens.into());
+
         let mut parser = Parser::new(tokens);
 
         let block = match parser.parse() {
@@ -61,6 +64,8 @@ mod lib {
                     meta.row+1, meta.col+1).into())
             }
         };
+
+        debugln!(debug_log, "{block:#?}");
 
         // if debug {
         //     for node in block.nodes.iter() {
@@ -82,9 +87,7 @@ mod lib {
         let debug_log = debug::open_file().expect("could not open log file");
         debugln!(debug_log, "{path}");
 
-        let mut block = parse(string)?;
-        debugln!(debug_log, "{block:#?}");
-
+        let mut block = parse(debug_log.clone(), string)?;
         let builtins = stdlib::get_builtins();
         let mut analysis = Analysis::default();
         let mut functions = HashMap::new();

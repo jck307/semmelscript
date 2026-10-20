@@ -4,7 +4,7 @@ use crate::*;
 
 macro_rules! define_enums {
     (
-        $($name:ident { $($field:ident = $str:expr,)* })*
+        $($name:ident { $($field:ident $(= $str:expr)?,)* })*
     ) => {
         $(
             #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +18,9 @@ macro_rules! define_enums {
                 pub fn try_from_str(string: &str) -> Option<Self> {
                     match string {
                         $(
-                            $str => Some(Self::$field),
+                            $(
+                                $str => Some(Self::$field),
+                            )?
                         )*
                         _ => None
                     }
@@ -33,7 +35,9 @@ macro_rules! define_enums {
                 // }
 
                 pub const ARRAY: &[(Self, &'static str)] = &[$(
-                    (Self::$field, $str),
+                    $(
+                        (Self::$field, $str),
+                    )?
                 )*];
             }
         )*
@@ -59,6 +63,8 @@ pub enum Token {
     Identifier(String),
     Keyword(Keyword),
     Operator(Operator),
+    Separator(Separator),
+    // Underscore,
 }
 
 define_enums! {
@@ -74,25 +80,23 @@ define_enums! {
         While = "while",
         In = "in",
         Goto = "goto",
+        KwAnd = "and",
+        KwOr = "or",
     }
 
-    Operator {
-        // misc
+    Separator {
         ParenOpen = "(",
         ParenClose = ")",
         BracketOpen = "[",
         BracketClose = "]",
         BraceOpen = "{",
         BraceClose = "}",
-        Dot = ".",
         Comma = ",",
         Colon = ":",
         Semicolon = ";",
-        Dollar = "$",
-        Exclamation = "!",
-        Question = "?",
-        Hashtag = "#",
+    }
 
+    Operator {
         // math
         Add = "+",
         Sub = "-",
@@ -110,8 +114,8 @@ define_enums! {
         GreaterEqual = ">=",
 
         // logic
-        And = "&&",
-        Or = "||",
+        And,
+        Or,
 
         // ranges
         RangeExcl = "..",
@@ -123,7 +127,7 @@ define_enums! {
         SubAssign = "-=",
         MulAssign = "*=",
         DivAssign = "/=",
-        PowAssign = "^⁼",
+        PowAssign = "^=",
         ModAssign = "%=",
     }
 }

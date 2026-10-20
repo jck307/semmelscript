@@ -13,7 +13,7 @@ const EOF: &'static str = "unexpected end of file";
 impl<T: PartialEq + Clone + Debug> Buffer<T> {
     pub fn new(buffer: Vec<T>) -> Self {
         Self {
-            buffer: buffer.into_boxed_slice(),
+            buffer: buffer.into(),
             i: 0,
         }
     }

@@ -31,7 +31,7 @@ impl Parser {
                 expr
             }
             &BracketOpen =>
-                Node::List(self.read_args(Operator::BracketClose)?),
+                Node::List(self.read_args(Separator::BracketClose)?),
             &BraceOpen => {
                 self.tokens.back();
                 self.read_block(true)?
@@ -47,7 +47,7 @@ impl Parser {
                     self.tokens.step();
                     value = Node::ParenArgs(
                         Box::new(value),
-                        self.read_args(Operator::ParenClose)?
+                        self.read_args(Separator::ParenClose)?
                     );
                 }
                 _ => { break }
@@ -57,12 +57,12 @@ impl Parser {
         Ok(value)
     }
 
-    fn read_args(&mut self, terminator: Operator) -> Result<Vec<Node>> {
+    fn read_args(&mut self, terminator: Separator) -> Result<Vec<Node>> {
         let mut args = Vec::new();
 
         loop {
             let peek = self.tokens.peek()?;
-            if let Token::Operator(op) = peek {
+            if let Token::Separator(op) = peek {
                 if *op == terminator {
                     self.tokens.step();
                     break
@@ -74,7 +74,7 @@ impl Parser {
                 &Comma => {
                     continue
                 }
-                Token::Operator(op) => {
+                Token::Separator(op) => {
                     if *op == terminator {
                         break
                     }
@@ -213,7 +213,7 @@ impl Parser {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&ParenOpen)?;
         let mut args = Vec::new();
-        for arg in self.read_args(Operator::ParenClose)? {
+        for arg in self.read_args(Separator::ParenClose)? {
             if let Node::Identifier(ident) = arg {
                 args.push(ident);
             } else {
@@ -259,7 +259,7 @@ impl Parser {
                         Func => self.read_func()?,
                         Let => self.read_let()?,
                         Goto => self.read_goto()?,
-                        True | False | Elif | Else | In
+                        True | False | Elif | Else | In | KwAnd | KwOr
                             => { return Err("unexpected keyword".into()) }
                     });
                 }

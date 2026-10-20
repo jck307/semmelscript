@@ -48,6 +48,13 @@ impl Tokenizer {
                         }
                     }
                 }
+                for (_, string) in Separator::ARRAY.iter() {
+                    for ch in string.chars() {
+                        if !chars.contains(&ch) {
+                            chars.push(ch);
+                        }
+                    }
+                }
                 chars.into_boxed_slice()
             },
         }
@@ -98,9 +105,12 @@ impl Tokenizer {
     fn read_word(&mut self) -> Result<Token> {
         let word: String = self.buffer.next_from(&self.ident_chars).iter().collect();
         if let Some(kw) = Keyword::try_from_str(&word) {
-            return Ok(Token::Keyword(kw.clone()))
-        }
-        if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {
+            match kw {
+                Keyword::KwAnd => Ok(Token::Operator(Operator::And)),
+                Keyword::KwOr => Ok(Token::Operator(Operator::Or)),
+                _ => Ok(Token::Keyword(kw.clone()))
+            }
+        } else if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {
             Err("invalid identifier".into())
         } else {
             Ok(Token::Identifier(word))
@@ -108,18 +118,35 @@ impl Tokenizer {
     }
 
     fn read_operator(&mut self) -> Result<Token> {
+        fn check_string(string: &String) -> Option<Token> {
+            let op = Operator::try_from_str(&string);
+            if let Some(op) = op {
+                Some(Token::Operator(op))
+            } else {
+                let sep = Separator::try_from_str(&string);
+                if let Some(sep) = sep {
+                    Some(Token::Separator(sep))
+                } else {
+                    None
+                }
+            }
+        }
+
         let string = &self.buffer.peek_from(&self.op_chars).iter().collect::<String>();
-        let op = Operator::try_from_str(string);
-        match op {
-            Some(op) => {
+        match check_string(string) {
+            Some(token) => {
                 self.buffer.stepn(string.len());
-                Ok(Token::Operator(op))
+                Ok(token)
             }
             None => {
-                Ok(Token::Operator(
-                    Operator::try_from_str(&String::from(*self.buffer.next()?))
-                    .ok_or(format!("invalid operator: {string}"))?
-                ))
+                match check_string(&self.buffer.next()?.to_string()) {
+                    Some(token) => {
+                        Ok(token)
+                    }
+                    None => {
+                        Err(format!("invalid operator: {string}"))?
+                    }
+                }
             }
         }
     }
@@ -129,10 +156,10 @@ impl Tokenizer {
             self.read_num()
         } else if STR_TERMINATORS.contains(ch) {
             self.read_str(ch)
-        } else if IDENTIFIER_OPENERS.contains(ch) {
-            self.read_word()
         } else if self.op_chars.contains(&ch) {
             self.read_operator()
+        } else if IDENTIFIER_OPENERS.contains(ch) {
+            self.read_word()
         } else {
             return Err(format!("unexpected character: {ch}").into())
         }
