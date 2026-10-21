@@ -55,14 +55,14 @@ macro_rules! op {
         }
     }};
 
-    // assume type Bool will never be used with non-binary operators
+    // assume type Bool will never be used with non-boolean operators
     (calc $_:ident, Bool, +)  => {{ panic!() }};
     (calc $_:ident, Bool, -)  => {{ panic!() }};
     (calc $_:ident, Bool, *)  => {{ panic!() }};
     (calc $_:ident, Bool, /)  => {{ panic!() }};
     (calc $_:ident, Bool, %)  => {{ panic!() }};
 
-    // set $result to Bool for binary operators
+    // set $result to Bool for boolean operators
     (calc $self:ident, $type:ident, ==) => {{ op!($self, $type, Bool, ==) }};
     (calc $self:ident, $type:ident, !=) => {{ op!($self, $type, Bool, !=) }};
     (calc $self:ident, $type:ident, <)  => {{ op!($self, $type, Bool, <)  }};
