@@ -31,6 +31,9 @@ impl Node {
                 bin_op.a.traverse(func)?;
                 bin_op.b.traverse(func)?;
             }
+            UnaryOp(un_op) => {
+                un_op.value.traverse(func)?;
+            }
             DefineVariable(_, value) => value.traverse(func)?,
             DefineFunction(_, _, block) => block.traverse(func)?,
             If(statements, end) => {
@@ -56,7 +59,14 @@ impl Node {
                     arg.traverse(func)?;
                 }
             }
-            _ => {}
+            Label(..) |
+            Goto(..) |
+            Identifier(..) |
+            String(..) |
+            Integer(..) |
+            Float(..) |
+            Boolean(..)
+                => {}
         }
         func(self, End)?;
         Ok(())

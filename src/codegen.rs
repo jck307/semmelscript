@@ -8,7 +8,7 @@ use {
         debug::*,
         token::Operator,
         analysis::Analysis,
-        node::{Node, Block, BinaryOp},
+        node::*,
         instruction::{Instruction, Function},
     },
 };
@@ -155,6 +155,7 @@ impl Generate for Node {
                 });
             }
             BinaryOp(bin_op) => bin_op.generate(codegen)?,
+            UnaryOp(un_op) => un_op.generate(codegen)?,
             Label(ident) => codegen.register_label(ident),
             Goto(ident) => { codegen.push_goto(ident); }
             Integer(integer) => {
@@ -334,6 +335,17 @@ impl Generate for BinaryOp {
             Operator::Or => Instruction::Or,
             other => todo!("{other:?}")
         });
+        Ok(())
+    }
+}
+
+impl Generate for UnaryOp {
+    fn generate(&self, codegen: &mut CodeGenerator) -> Result<()> {
+        self.value.generate(codegen)?;
+        match &self.op {
+            Operator::Not => { codegen.push(Instruction::Not); }
+            _ => {}
+        }
         Ok(())
     }
 }

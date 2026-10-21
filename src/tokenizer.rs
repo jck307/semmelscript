@@ -108,6 +108,7 @@ impl Tokenizer {
             match kw {
                 Keyword::KwAnd => Ok(Token::Operator(Operator::And)),
                 Keyword::KwOr => Ok(Token::Operator(Operator::Or)),
+                Keyword::KwNot => Ok(Token::Operator(Operator::Not)),
                 _ => Ok(Token::Keyword(kw.clone()))
             }
         } else if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {

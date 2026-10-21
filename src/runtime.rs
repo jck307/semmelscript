@@ -293,6 +293,10 @@ impl Runtime {
                 LessEqual(ty) => op!(self, ty, <=),
                 And => op!(self, Bool, Bool, &&),
                 Or => op!(self, Bool, Bool, ||),
+                Not => {
+                    let value = unsafe { self.stack.pop().Bool };
+                    self.stack.push(Value { Bool: !value });
+                }
                 Placeholder => unreachable!(),
             }
             #[cfg(feature = "debug-logging")]

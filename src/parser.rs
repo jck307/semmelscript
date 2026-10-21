@@ -19,6 +19,13 @@ impl Parser {
     }
 
     fn read_value(&mut self) -> Result<Node> {
+        let un_op = if let Token::Operator(op) = self.tokens.peek()?.clone() {
+            self.tokens.step();
+            Some(op)
+        } else {
+            None
+        };
+
         let mut value = match self.tokens.next()? {
             Token::String(string) => Node::String(string.clone().into()),
             Token::Integer(int) => Node::Integer(*int),
@@ -53,6 +60,15 @@ impl Parser {
                 _ => { break }
             }
         }
+
+        let value = if let Some(op) = un_op {
+            Node::UnaryOp(Box::new(UnaryOp {
+                op: op.clone(),
+                value,
+            }))
+        } else {
+            value
+        };
 
         Ok(value)
     }
@@ -259,7 +275,7 @@ impl Parser {
                         Func => self.read_func()?,
                         Let => self.read_let()?,
                         Goto => self.read_goto()?,
-                        True | False | Elif | Else | In | KwAnd | KwOr
+                        True | False | Elif | Else | In | KwAnd | KwOr | KwNot
                             => { return Err("unexpected keyword".into()) }
                     });
                 }

@@ -82,6 +82,7 @@ define_enums! {
         Goto = "goto",
         KwAnd = "and",
         KwOr = "or",
+        KwNot = "not",
     }
 
     Separator {
@@ -116,6 +117,7 @@ define_enums! {
         // logic
         And,
         Or,
+        Not,
 
         // ranges
         RangeExcl = "..",
@@ -169,4 +171,8 @@ pub static BINARY_OPERATORS: &[Operator] = &[
     DivAssign,
     PowAssign,
     ModAssign,
+];
+
+pub static UNARY_OPERATORS: &[Operator] = &[
+    Not,
 ];

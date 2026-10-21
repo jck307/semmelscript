@@ -11,6 +11,7 @@ pub enum Node {
     Block(Block),
     ParenArgs(Box<Node>, Vec<Node>),
     BinaryOp(Box<BinaryOp>),
+    UnaryOp(Box<UnaryOp>),
 
     // Statements
     DefineVariable(Identifier, Box<Node>),
@@ -35,6 +36,12 @@ pub struct BinaryOp {
     pub op: Operator,
     pub a: Node,
     pub b: Node,
+}
+
+#[derive(Debug)]
+pub struct UnaryOp {
+    pub op: Operator,
+    pub value: Node,
 }
 
 #[derive(Debug)]

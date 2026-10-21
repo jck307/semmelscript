@@ -39,6 +39,7 @@ pub enum Instruction {
     LessEqual(Type),
     And,
     Or,
+    Not,
     Placeholder,
 }
 

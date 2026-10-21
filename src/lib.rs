@@ -41,7 +41,7 @@ mod lib {
         let buffer = Buffer::new(string.chars().collect());
         let mut tokenizer = Tokenizer::new(buffer);
         let (tokens, metas) = tokenizer.tokenize()?;
-        debugln!(debug_log, "{:#?}", tokens);
+        debugln!(debug_log, "{:?}", tokens);
 
         // if debug {
         //     println!("tokens:");
