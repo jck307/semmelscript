@@ -41,8 +41,16 @@ impl Parser {
         };
 
         let mut value = {
-            let meta = meta.clone();
-            match self.tokens.next()? {
+            let mut meta = meta.clone();
+            let token = self.tokens.next()?;
+            meta.ty = match token {
+                Token::String(_) => Type::String,
+                Token::Integer(_) => Type::I64,
+                Token::Float(_) => Type::F64,
+                Token::Boolean(_) => Type::Bool,
+                _ => meta.ty
+            };
+            match token {
                 Token::String(string) => Node::String(string.clone().into(), meta),
                 Token::Integer(int) => Node::Integer(*int, meta),
                 Token::Float(float) => Node::Float(*float, meta),
@@ -60,8 +68,6 @@ impl Parser {
                     self.tokens.back();
                     self.read_block(true)?
                 },
-                &True => Node::Boolean(true, meta),
-                &False => Node::Boolean(false, meta),
                 token => { return Err(format!("expected value (found {token:?})").into()) }
             }
         };

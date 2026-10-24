@@ -36,7 +36,7 @@ pub fn execute(
 
     let analysis = Rc::new(RefCell::new(analysis));
     step1::execute(debug_log.clone(), block, initial_scope, analysis.clone())?;
-    // step2::execute(debug_log, block, analysis.clone())?;
+    step2::execute(debug_log, block, analysis.clone())?;
     let analysis = analysis.take();
     Ok(analysis)
 }
@@ -153,30 +153,62 @@ mod step1 {
     }
 }
 
-// mod step2 {
-//     use super::*;
+mod step2 {
+    use super::*;
 
-//     pub fn execute(
-//             #[allow(unused_variables)]
-//             debug_log: DebugLog,
-//             block: &mut Node,
-//             analysis: Rc<RefCell<Analysis>>) -> Result<()> {
+    pub fn execute(
+            #[allow(unused_variables)]
+            debug_log: DebugLog,
+            block: &mut Node,
+            analysis: Rc<RefCell<Analysis>>) -> Result<()> {
 
-//         block.traverse(
-//             &move |node: &mut Node, mode| {
-//                 match (mode, node) => {
-//                     // (Start, Identifier(id) => 
-//                     (Start, String(..) => 
-//                     (Start, Integer(..) => 
-//                     (Start, Float(..) => 
-//                     (Start, Boolean(..) => 
-//                     _ => {}
-//                 }
+        block.traverse(
+            &move |node: &mut Node, mode| {
+                use crate::token::BOOLEAN_OPERATORS;
+                let mut analysis = (*analysis).borrow_mut();
 
-//                 Ok(())
-//             }
-//         )?;
+                if let End = mode {
+                    match node {
+                        Node::BinaryOp(bin_op, meta) => {
+                            // TODO check if types are valid for operator
+                            let a_ty = &bin_op.a.meta().ty;
+                            let b_ty = &bin_op.b.meta().ty;
+                            if a_ty == b_ty {
+                                meta.ty = if BOOLEAN_OPERATORS.contains(&bin_op.op) {
+                                    Type::Bool
+                                } else {
+                                    a_ty.clone()
+                                };
+                            } else {
+                                return Err(format!(
+                                    "type mismatch between \
+                                    {:?} and {:?} for operator {:?}",
+                                    a_ty,
+                                    b_ty,
+                                    bin_op.op
+                                ).into())
+                            }
+                        }
+                        Node::UnaryOp(_un_op, meta) => {
+                            // TODO improve
+                            meta.ty = Type::Bool;
+                        }
+                        Node::DefineVariable(ident, node, _) => {
+                            let id = ident.as_id();
+                            analysis.types.insert(*id, node.meta().ty.clone());
+                        }
+                        Node::Identifier(ident, meta) => {
+                            let id = ident.as_id();
+                            meta.ty = analysis.types[id].clone();
+                        }
+                        _ => {}
+                    }
+                }
 
-//         Ok(())
-//     }
-// }
+                Ok(())
+            }
+        )?;
+
+        Ok(())
+    }
+}

@@ -105,6 +105,8 @@ impl Tokenizer {
                 Keyword::KwAnd => Ok(Token::Operator(Operator::And)),
                 Keyword::KwOr  => Ok(Token::Operator(Operator::Or)),
                 Keyword::KwNot => Ok(Token::Operator(Operator::Not)),
+                Keyword::True  => Ok(Token::Boolean(true)),
+                Keyword::False => Ok(Token::Boolean(false)),
                 _ => Ok(Token::Keyword(kw.clone()))
             }
         } else if let Some(ty) = Primitive::try_from_str(&word) {

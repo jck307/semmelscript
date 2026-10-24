@@ -1,4 +1,4 @@
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct FunctionSignature(pub Vec<Type>, pub Vec<Type>);
 
@@ -15,7 +15,7 @@ impl FunctionSignature {
 macro_rules! define_types {
     ($($value:ident: $type:ty,)*) => {
         #[allow(dead_code)]
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, PartialEq)]
         #[repr(u16)]
         pub enum Type {
             $( $value, )*

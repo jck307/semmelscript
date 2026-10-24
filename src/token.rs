@@ -185,3 +185,14 @@ pub static BINARY_OPERATORS: &[Operator] = &[
 pub static UNARY_OPERATORS: &[Operator] = &[
     Not,
 ];
+
+pub static BOOLEAN_OPERATORS: &[Operator] = &[
+    Equal,
+    Inequal,
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    And,
+    Or,
+];

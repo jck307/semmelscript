@@ -111,6 +111,28 @@ impl From<String> for Identifier {
 // }
 
 impl Node {
+    pub fn meta(&self) -> &NodeMeta {
+        match self {
+            Node::Block(.., meta) => meta,
+            Node::ParenArgs(.., meta) => meta,
+            Node::BinaryOp(.., meta) => meta,
+            Node::UnaryOp(.., meta) => meta,
+            Node::DefineVariable(.., meta) => meta,
+            Node::DefineFunction(.., meta) => meta,
+            Node::If(.., meta) => meta,
+            Node::For(.., meta) => meta,
+            Node::While(.., meta) => meta,
+            Node::Label(.., meta) => meta,
+            Node::Goto(.., meta) => meta,
+            Node::Identifier(.., meta) => meta,
+            Node::String(.., meta) => meta,
+            Node::Integer(.., meta) => meta,
+            Node::Float(.., meta) => meta,
+            Node::Boolean(.., meta) => meta,
+            Node::List(.., meta) => meta,
+        }
+    }
+
     // pub fn name(&self) -> &'static str {
     //     match self {
     //         Node::Block(..) => "Block",
