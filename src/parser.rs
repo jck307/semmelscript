@@ -5,20 +5,34 @@ use crate::{
     buffer::Buffer,
     node::*,
     token::{*, consts::*},
+    tokenizer::TokenMeta,
+    types::Type,
 };
 
 pub struct Parser {
     pub tokens: Buffer<Token>,
+    metas: Vec<TokenMeta>,
 }
 
 impl Parser {
-    pub fn new(tokens: Buffer<Token>) -> Self {
+    pub fn new(tokens: Buffer<Token>, metas: Vec<TokenMeta>) -> Self {
         Self {
             tokens,
+            metas,
+        }
+    }
+
+    fn get_meta(&self) -> NodeMeta {
+        let TokenMeta { row, col } = self.metas[self.tokens.i];
+        NodeMeta {
+            location: Some((row, col)),
+            ty: Type::Unknown,
         }
     }
 
     fn read_value(&mut self) -> Result<Node> {
+        let meta = self.get_meta();
+
         let un_op = if let Token::Operator(op) = self.tokens.peek()?.clone() {
             self.tokens.step();
             Some(op)
@@ -26,26 +40,30 @@ impl Parser {
             None
         };
 
-        let mut value = match self.tokens.next()? {
-            Token::String(string) => Node::String(string.clone().into()),
-            Token::Integer(int) => Node::Integer(*int),
-            Token::Float(float) => Node::Float(*float),
-            Token::Boolean(boolean) => Node::Boolean(*boolean),
-            Token::Identifier(ident) => Node::Identifier(ident.clone().into()),
-            &ParenOpen => {
-                let expr = self.read_expression()?;
-                self.tokens.expect(&ParenClose)?;
-                expr
+        let mut value = {
+            let meta = meta.clone();
+            match self.tokens.next()? {
+                Token::String(string) => Node::String(string.clone().into(), meta),
+                Token::Integer(int) => Node::Integer(*int, meta),
+                Token::Float(float) => Node::Float(*float, meta),
+                Token::Boolean(boolean) => Node::Boolean(*boolean, meta),
+                Token::Identifier(ident)
+                    => Node::Identifier(ident.clone().into(), meta),
+                &ParenOpen => {
+                    let expr = self.read_expression()?;
+                    self.tokens.expect(&ParenClose)?;
+                    expr
+                }
+                &BracketOpen =>
+                    Node::List(self.read_args(Separator::BracketClose)?, meta),
+                &BraceOpen => {
+                    self.tokens.back();
+                    self.read_block(true)?
+                },
+                &True => Node::Boolean(true, meta),
+                &False => Node::Boolean(false, meta),
+                token => { return Err(format!("expected value (found {token:?})").into()) }
             }
-            &BracketOpen =>
-                Node::List(self.read_args(Separator::BracketClose)?),
-            &BraceOpen => {
-                self.tokens.back();
-                self.read_block(true)?
-            },
-            &True => Node::Boolean(true),
-            &False => Node::Boolean(false),
-            token => { return Err(format!("expected value (found {token:?})").into()) }
         };
 
         while let Ok(token) = self.tokens.peek() {
@@ -54,7 +72,8 @@ impl Parser {
                     self.tokens.step();
                     value = Node::ParenArgs(
                         Box::new(value),
-                        self.read_args(Separator::ParenClose)?
+                        self.read_args(Separator::ParenClose)?,
+                        meta.clone(),
                     );
                 }
                 _ => { break }
@@ -62,10 +81,13 @@ impl Parser {
         }
 
         let value = if let Some(op) = un_op {
-            Node::UnaryOp(Box::new(UnaryOp {
-                op: op.clone(),
-                value,
-            }))
+            Node::UnaryOp(
+                Box::new(UnaryOp {
+                    op: op.clone(),
+                    value,
+                }),
+                meta.clone(),
+            )
         } else {
             value
         };
@@ -131,11 +153,14 @@ impl Parser {
                                 .collect::<Vec<_>>().try_into().unwrap();
                             let _ = operators.remove(i);
 
-                            values.insert(i, Node::BinaryOp(Box::new(BinaryOp {
-                                op: op.clone(),
-                                a,
-                                b,
-                            })));
+                            values.insert(i, Node::BinaryOp(
+                                Box::new(BinaryOp {
+                                    op: op.clone(),
+                                    a,
+                                    b,
+                                }),
+                                NodeMeta::empty(),
+                            ));
 
                             break 'levels
                         }
@@ -148,7 +173,7 @@ impl Parser {
         Ok(values.remove(0))
     }
 
-    fn read_if(&mut self) -> Result<Node> {
+    fn read_if(&mut self, meta: NodeMeta) -> Result<Node> {
         let mut statements = vec![(
             Box::new(self.read_expression()?),
             Box::new(self.read_block(true)?),
@@ -176,7 +201,7 @@ impl Parser {
             }
         }
 
-        Ok(Node::If(statements, end))
+        Ok(Node::If(statements, end, meta))
     }
 
     fn read_ident_as_string(&mut self) -> Result<String> {
@@ -187,7 +212,7 @@ impl Parser {
         }
     }
 
-    fn read_for(&mut self) -> Result<Node> {
+    fn read_for(&mut self, meta: NodeMeta) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&In)?;
         let expr = self.read_expression()?;
@@ -195,42 +220,45 @@ impl Parser {
         Ok(Node::For(
             ident.into(),
             Box::new(expr),
-            Box::new(block)
+            Box::new(block),
+            meta,
         ))
     }
 
-    fn read_while(&mut self) -> Result<Node> {
+    fn read_while(&mut self, meta: NodeMeta) -> Result<Node> {
         let expr = self.read_expression()?;
         let block = self.read_block(true)?;
         Ok(Node::While(
             Box::new(expr),
-            Box::new(block)
+            Box::new(block),
+            meta,
         ))
     }
 
-    fn read_let(&mut self) -> Result<Node> {
+    fn read_let(&mut self, meta: NodeMeta) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&Assign)?;
         let expr = self.read_expression()?;
         self.tokens.expect(&Semicolon)?;
         Ok(Node::DefineVariable(
             ident.to_string().into(),
-            Box::new(expr)
+            Box::new(expr),
+            meta,
         ))
     }
 
-    fn read_goto(&mut self) -> Result<Node> {
+    fn read_goto(&mut self, meta: NodeMeta) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&Semicolon)?;
-        Ok(Node::Goto(ident.into()))
+        Ok(Node::Goto(ident.into(), meta))
     }
 
-    fn read_func(&mut self) -> Result<Node> {
+    fn read_func(&mut self, meta: NodeMeta) -> Result<Node> {
         let ident = self.read_ident_as_string()?;
         self.tokens.expect(&ParenOpen)?;
         let mut args = Vec::new();
         for arg in self.read_args(Separator::ParenClose)? {
-            if let Node::Identifier(ident) = arg {
+            if let Node::Identifier(ident, _) = arg {
                 args.push(ident);
             } else {
                 return Err("expected identifier".into())
@@ -240,11 +268,13 @@ impl Parser {
         Ok(Node::DefineFunction(
             ident.to_string().into(),
             args,
-            Box::new(block)
+            Box::new(block),
+            meta,
         ))
     }
 
     fn read_block(&mut self, inner: bool) -> Result<Node> {
+        let meta = self.get_meta();
         let mut nodes = Vec::new();
         let mut return_last = false;
 
@@ -267,21 +297,26 @@ impl Parser {
                 }
                 Ok(Token::Keyword(kw)) => {
                     use Keyword::*;
+                    let meta = self.get_meta();
                     self.tokens.step();
                     nodes.push(match kw {
-                        If => self.read_if()?,
-                        For => self.read_for()?,
-                        While => self.read_while()?,
-                        Func => self.read_func()?,
-                        Let => self.read_let()?,
-                        Goto => self.read_goto()?,
+                        If => self.read_if(meta)?,
+                        For => self.read_for(meta)?,
+                        While => self.read_while(meta)?,
+                        Func => self.read_func(meta)?,
+                        Let => self.read_let(meta)?,
+                        Goto => self.read_goto(meta)?,
                         True | False | Elif | Else | In | KwAnd | KwOr | KwNot
                             => { return Err("unexpected keyword".into()) }
                     });
                 }
                 Ok(Colon) => {
+                    let meta = self.get_meta();
                     self.tokens.step();
-                    nodes.push(Node::Label(self.read_ident_as_string()?.into()));
+                    nodes.push(Node::Label(
+                        self.read_ident_as_string()?.into(),
+                        meta,
+                    ));
                     self.tokens.expect(&Semicolon)?;
                 }
                 Ok(_) => {
@@ -302,10 +337,13 @@ impl Parser {
             }
         }
 
-        Ok(Node::Block(Block {
-            nodes,
-            return_last,
-        }))
+        Ok(Node::Block(
+            Block {
+                nodes,
+                return_last,
+            },
+            meta,
+        ))
     }
 
     pub fn parse(&mut self) -> Result<Node> {

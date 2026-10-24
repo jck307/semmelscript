@@ -3,32 +3,48 @@ use {
         *,
         token::Operator,
     },
+    types::Type,
 };
 
 #[allow(unused)]
 #[derive(Debug)]
 pub enum Node {
-    Block(Block),
-    ParenArgs(Box<Node>, Vec<Node>),
-    BinaryOp(Box<BinaryOp>),
-    UnaryOp(Box<UnaryOp>),
+    Block(Block, NodeMeta),
+    ParenArgs(Box<Node>, Vec<Node>, NodeMeta),
+    BinaryOp(Box<BinaryOp>, NodeMeta),
+    UnaryOp(Box<UnaryOp>, NodeMeta),
 
     // Statements
-    DefineVariable(Identifier, Box<Node>),
-    DefineFunction(Identifier, Vec<Identifier>, Box<Node>),
-    If(Vec<(Box<Node>, Box<Node>)>, Option<Box<Node>>),
-    For(Identifier, Box<Node>, Box<Node>),
-    While(Box<Node>, Box<Node>),
-    Label(Box<str>),
-    Goto(Box<str>),
+    DefineVariable(Identifier, Box<Node>, NodeMeta),
+    DefineFunction(Identifier, Vec<Identifier>, Box<Node>, NodeMeta),
+    If(Vec<(Box<Node>, Box<Node>)>, Option<Box<Node>>, NodeMeta),
+    For(Identifier, Box<Node>, Box<Node>, NodeMeta),
+    While(Box<Node>, Box<Node>, NodeMeta),
+    Label(Box<str>, NodeMeta),
+    Goto(Box<str>, NodeMeta),
 
     // Literals
-    Identifier(Identifier),
-    String(Box<str>),
-    Integer(Integer),
-    Float(Float),
-    Boolean(bool),
-    List(Vec<Node>),
+    Identifier(Identifier, NodeMeta),
+    String(Box<str>, NodeMeta),
+    Integer(Integer, NodeMeta),
+    Float(Float, NodeMeta),
+    Boolean(bool, NodeMeta),
+    List(Vec<Node>, NodeMeta),
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeMeta {
+    pub location: Option<(u16, u16)>,
+    pub ty: Type,
+}
+
+impl NodeMeta {
+    pub fn empty() -> Self {
+        Self {
+            location: None,
+            ty: Type::Unknown,
+        }
+    }
 }
 
 #[derive(Debug)]

@@ -44,31 +44,31 @@ mod lib {
         let buffer = Buffer::new(string.chars().collect());
         let mut tokenizer = Tokenizer::new(buffer);
         let (tokens, metas) = tokenizer.tokenize()?;
-        debugln!(debug_log, "{:?}", tokens);
 
-        // if debug {
-        //     println!("tokens:");
-        //     for (token, meta) in tokens.iter().zip(&metas) {
-        //         let pos = format!("{}:{}", meta.row+1, meta.col+1);
-        //         println!("    {pos:5}  {token:?}");
-        //     }
-        // }
+        #[cfg(feature = "debug-logging")]
+        {
+            debugln!(debug_log, "tokens:");
+            for (token, meta) in tokens.iter().zip(&metas) {
+                let pos = format!("{}:{}", meta.row+1, meta.col+1);
+                debugln!(debug_log, "\t{pos:5} {token:?}");
+            }
+        }
 
         let tokens = Buffer::new(tokens.into());
-
-        let mut parser = Parser::new(tokens);
+        let mut parser = Parser::new(tokens, metas);
 
         let block = match parser.parse() {
             Ok(block) => block,
             Err(err) => {
-                let meta = &metas.get(parser.tokens.i).unwrap_or_else(||
-                    &metas[metas.len()-1]);
-                return Err(format!("syntax error at {}:{}: {err}",
-                    meta.row+1, meta.col+1).into())
+                // let meta = &metas.get(parser.tokens.i).unwrap_or_else(||
+                //     &metas[metas.len()-1]);
+                // return Err(format!("syntax error at {}:{}: {err}",
+                //     meta.row+1, meta.col+1).into())
+                return Err(err);
             }
         };
 
-        debugln!(debug_log, "{block:#?}");
+        debugln!(debug_log, "nodes:\n{block:#?}");
 
         // if debug {
         //     for node in block.nodes.iter() {
@@ -133,7 +133,7 @@ mod lib {
         debugln!(debug_log, "{analysis:#?}");
 
         let mut generator = CodeGenerator::new(debug_log.clone(), functions, analysis);
-        let Node::Block(block) = block else { panic!() };
+        let Node::Block(block, _) = block else { panic!() };
         block.generate(&mut generator)?;
         generator.do_final()?;
 
@@ -142,7 +142,7 @@ mod lib {
             for (i, func) in &generator.functions {
                 debugln!(debug_log, "function {i}:");
                 for i in 0..func.len() {
-                    debugln!(debug_log, "\t{i}: {:?}", func[i]);
+                    debugln!(debug_log, "\t{i:>2}: {:?}", func[i]);
                 }
             }
         }

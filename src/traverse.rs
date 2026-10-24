@@ -16,27 +16,27 @@ impl Node {
         use Node::*;
         func(self, Start)?;
         match self {
-            Block(block) => {
+            Block(block, _) => {
                 for node in &mut block.nodes {
                     node.traverse(func)?;
                 }
             }
-            ParenArgs(callable, args) => {
+            ParenArgs(callable, args, _) => {
                 callable.traverse(func)?;
                 for arg in args {
                     arg.traverse(func)?;
                 }
             }
-            BinaryOp(bin_op) => {
+            BinaryOp(bin_op, _) => {
                 bin_op.a.traverse(func)?;
                 bin_op.b.traverse(func)?;
             }
-            UnaryOp(un_op) => {
+            UnaryOp(un_op, _) => {
                 un_op.value.traverse(func)?;
             }
-            DefineVariable(_, value) => value.traverse(func)?,
-            DefineFunction(_, _, block) => block.traverse(func)?,
-            If(statements, end) => {
+            DefineVariable(_, value, _) => value.traverse(func)?,
+            DefineFunction(_, _, block, _) => block.traverse(func)?,
+            If(statements, end, _) => {
                 for (condition, block) in statements {
                     condition.traverse(func)?;
                     block.traverse(func)?;
@@ -46,15 +46,15 @@ impl Node {
                     block.traverse(func)?;
                 }
             }
-            For(_, iterable, block) => {
+            For(_, iterable, block, _) => {
                 iterable.traverse(func)?;
                 block.traverse(func)?;
             }
-            While(condition, block) => {
+            While(condition, block, _) => {
                 condition.traverse(func)?;
                 block.traverse(func)?;
             }
-            List(args) => {
+            List(args, _) => {
                 for arg in args {
                     arg.traverse(func)?;
                 }

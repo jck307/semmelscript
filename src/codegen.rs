@@ -149,29 +149,29 @@ impl Generate for Node {
     fn generate(&self, codegen: &mut CodeGenerator) -> Result<()> {
         use Node::*;
         match self {
-            Block(block) => {
+            Block(block, _) => {
                 block!(codegen, block, {
                     block.generate(codegen)?;
                 });
             }
-            BinaryOp(bin_op) => bin_op.generate(codegen)?,
-            UnaryOp(un_op) => un_op.generate(codegen)?,
-            Label(ident) => codegen.register_label(ident),
-            Goto(ident) => { codegen.push_goto(ident); }
-            Integer(integer) => {
+            BinaryOp(bin_op, _) => bin_op.generate(codegen)?,
+            UnaryOp(un_op, _) => un_op.generate(codegen)?,
+            Label(ident, _) => codegen.register_label(ident),
+            Goto(ident, _) => { codegen.push_goto(ident); }
+            Integer(integer, _) => {
                 codegen.push(
                     Instruction::PushNumber64(Type::I64, integer.cast_unsigned())
                 );
             }
-            String(string) => {
+            String(string, _) => {
                 codegen.push(Instruction::PushString(string.to_string())); }
-            Boolean(boolean) => { codegen.push(Instruction::PushBool(*boolean)); }
-            Identifier(id) => {
+            Boolean(boolean, _) => { codegen.push(Instruction::PushBool(*boolean)); }
+            Identifier(id, _) => {
                 codegen.push(Instruction::Dup(codegen.get_rel_id(id.as_id())));
             }
-            DefineVariable(_, node) => { node.generate(codegen)?; }
-            ParenArgs(callable, args) => {
-                let Identifier(id) = &**callable
+            DefineVariable(_, node, _) => { node.generate(codegen)?; }
+            ParenArgs(callable, args, _) => {
+                let Identifier(id, _) = &**callable
                     else { panic!("cannot call non-identifier: {callable:?}"); };
                 let id = id.as_id();
                 let sig = match codegen.analysis.types[id] {
@@ -191,13 +191,13 @@ impl Generate for Node {
                 codegen.stack_index = start_stack_index + sig.num_return_values();
                 codegen.push(Instruction::Call(*id));
             }
-            If(statements, end) => {
+            If(statements, end, _) => {
                 let mut placeholder_indexes = Vec::new();
 
                 for (condition, block) in statements {
                     condition.generate(codegen)?;
                     let placeholder_index = codegen.push(Instruction::GotoIf(0));
-                    let Block(block) = &**block else { panic!() };
+                    let Block(block, _) = &**block else { panic!() };
                     block!(codegen, block, {
                         block.generate(codegen)?;
                     });
@@ -217,16 +217,16 @@ impl Generate for Node {
                     codegen.replace(index, Instruction::Goto(current_index));
                 }
             }
-            For(_ident, iterable, block) => {
+            For(_ident, iterable, block, _) => {
                 use Operator::*;
-                let Node::Block(block) = &**block else { unreachable!() };
-                'block: { if let Node::BinaryOp(op) = &**iterable {
+                let Node::Block(block, _) = &**block else { unreachable!() };
+                'block: { if let Node::BinaryOp(op, _) = &**iterable {
                     match op.op {
                         RangeExcl | RangeIncl => {}
                         _ => { break 'block }
                     }
                     let (a, b) = match (&op.a, &op.b) {
-                        (Node::Integer(a), Node::Integer(b)) => (a, b),
+                        (Node::Integer(a, _), Node::Integer(b, _)) => (a, b),
                         _ => { break 'block }
                     };
                     let b = if op.op == RangeIncl { b + 1 } else { *b };
@@ -250,11 +250,11 @@ impl Generate for Node {
                 }}
                 todo!("can only iterate over constant ranges, not {iterable:?}")
             }
-            DefineFunction(id, _, block) => {
+            DefineFunction(id, _, block, _) => {
                 let id = id.as_id();
                 let Type::Function(sig) = codegen.analysis.types[id].clone()
                     else { panic!() };
-                let Node::Block(block) = &**block else { panic!() };
+                let Node::Block(block, _) = &**block else { panic!() };
                 let start_stack_index = codegen.stack_index;
                 let old_id = codegen.new_function(*id);
                 codegen.stack_index = sig.num_args();
@@ -302,7 +302,7 @@ impl Generate for BinaryOp {
         match &self.op {
             Operator::Assign => {
                 self.b.generate(codegen)?;
-                let Node::Identifier(ref id) = self.a else { panic!() };
+                let Node::Identifier(ref id, _) = self.a else { panic!() };
                 codegen.push(Instruction::MoveTo(codegen.get_rel_id(id.as_id())));
                 return Ok(())
             }
