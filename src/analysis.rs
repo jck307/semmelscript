@@ -204,7 +204,7 @@ mod step2 {
                                 meta.ty = if BOOLEAN_OPERATORS.contains(&bin_op.op) {
                                     Type::Bool
                                 } else if COMPARISON_OPERATORS.contains(&bin_op.op) {
-                                        Type::Bool
+                                    Type::Bool
                                 } else {
                                     ty.clone()
                                 };
