@@ -164,21 +164,51 @@ mod step2 {
 
         block.traverse(
             &move |node: &mut Node, mode| {
-                use crate::token::BOOLEAN_OPERATORS;
+                use crate::token::*;
+                use crate::types::NUMERIC_TYPES;
                 let mut analysis = (*analysis).borrow_mut();
 
                 if let End = mode {
                     match node {
                         Node::BinaryOp(bin_op, meta) => {
-                            // TODO check if types are valid for operator
                             let a_ty = &bin_op.a.meta().ty;
                             let b_ty = &bin_op.b.meta().ty;
+
                             if a_ty == b_ty {
+                                let ty = a_ty;
+                                if (
+                                        // if the type is boolean,
+                                        // expect the operator to also be boolean
+                                        *ty == Type::Bool &&
+                                        !BOOLEAN_OPERATORS.contains(&bin_op.op)
+                                    ) || (
+                                        // if the type is numeric,
+                                        // expect the operator to be either
+                                        // comparing or arithmetic
+                                        NUMERIC_TYPES.contains(ty) && !(
+                                        COMPARISON_OPERATORS.contains(&bin_op.op) ||
+                                        ARITHMETIC_OPERATORS.contains(&bin_op.op))
+                                    ) || (
+                                        // expect the type to be either
+                                        // boolean or numeric
+                                        *ty != Type::Bool &&
+                                        !NUMERIC_TYPES.contains(ty)
+                                    ) {
+                                    return Err(format!(
+                                        "invalid type {:?} for operator {:?}",
+                                        ty,
+                                        bin_op.op
+                                    ).into())
+                                }
+
                                 meta.ty = if BOOLEAN_OPERATORS.contains(&bin_op.op) {
                                     Type::Bool
+                                } else if COMPARISON_OPERATORS.contains(&bin_op.op) {
+                                        Type::Bool
                                 } else {
-                                    a_ty.clone()
+                                    ty.clone()
                                 };
+
                             } else {
                                 return Err(format!(
                                     "type mismatch between \

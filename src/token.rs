@@ -189,10 +189,24 @@ pub static UNARY_OPERATORS: &[Operator] = &[
 pub static BOOLEAN_OPERATORS: &[Operator] = &[
     Equal,
     Inequal,
+    And,
+    Or,
+];
+
+pub static COMPARISON_OPERATORS: &[Operator] = &[
+    Equal,
+    Inequal,
     Less,
     LessEqual,
     Greater,
     GreaterEqual,
-    And,
-    Or,
+];
+
+pub static ARITHMETIC_OPERATORS: &[Operator] = &[
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Pow,
+    Mod,
 ];
