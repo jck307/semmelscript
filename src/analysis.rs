@@ -201,9 +201,9 @@ mod step2 {
                                     ).into())
                                 }
 
-                                meta.ty = if BOOLEAN_OPERATORS.contains(&bin_op.op) {
-                                    Type::Bool
-                                } else if COMPARISON_OPERATORS.contains(&bin_op.op) {
+                                meta.ty = if 
+                                        BOOLEAN_OPERATORS.contains(&bin_op.op) ||
+                                        COMPARISON_OPERATORS.contains(&bin_op.op) {
                                     Type::Bool
                                 } else {
                                     ty.clone()
