@@ -244,7 +244,6 @@ impl Generate for Node {
                     codegen.push(
                         Instruction::LoopUpdate(
                             b.try_into().expect("invalid value"),
-                            1,
                             start_instr_index
                     ));
                     return Ok(())

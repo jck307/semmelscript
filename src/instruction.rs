@@ -12,7 +12,7 @@ pub enum Instruction {
     CallInternal(fn(&mut Runtime)),
     Goto(usize),
     GotoIf(usize),
-    LoopUpdate(u64, u64, usize),
+    LoopUpdate(u64, usize),
     Pop(usize),
     Dup(usize),
     Swap(usize),

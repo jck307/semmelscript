@@ -113,13 +113,17 @@ mod step1 {
                                             analysis.local_ids.insert(id, i);
                                             analysis.types.insert(id, Type::Unknown);
                                         }
-                                        let Node::Block(block) = &**block else { panic!() };
+                                        let Node::Block(block) = &**block
+                                            else { panic!() };
                                         if block.return_last {
                                             sig.1.push(Type::Unknown);
                                         }
                                         state.scope.push((args.len(), vec![args_scope]));
                                         state.scope_added = true;
-                                        analysis.types.insert(id, Type::Function(sig));
+                                        analysis.types.insert(
+                                            id,
+                                            Type::Function(Box::new(sig))
+                                        );
                                     }
                                     _ => {
                                         let local_id = state.scope[last_func].0;
@@ -150,3 +154,7 @@ mod step1 {
         Ok(())
     }
 }
+
+// mod step2 {
+//     pub fn execute(debug_log: 
+// }

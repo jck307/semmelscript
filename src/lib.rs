@@ -37,7 +37,10 @@ mod lib {
     pub type Integer = i64;
     pub type Float = f64;
 
-    fn parse(debug_log: DebugLog, string: String) -> Result<Node> {
+    fn parse(
+            #[allow(unused)]
+            debug_log: DebugLog,
+            string: String) -> Result<Node> {
         let buffer = Buffer::new(string.chars().collect());
         let mut tokenizer = Tokenizer::new(buffer);
         let (tokens, metas) = tokenizer.tokenize()?;
@@ -87,6 +90,22 @@ mod lib {
         let debug_log = debug::open_file().expect("could not open log file");
         debugln!(debug_log, "{path}");
 
+        #[cfg(feature = "debug-logging")]
+        {
+            use {
+                std::mem::size_of,
+                crate::{
+                    types::{Value, FunctionSignature},
+                    instruction::Instruction,
+                },
+            };
+            debugln!(debug_log, "sizes in bytes:");
+            debugln!(debug_log, "\tType: {}", size_of::<Type>());
+            debugln!(debug_log, "\tValue: {}", size_of::<Value>());
+            debugln!(debug_log, "\tInstruction: {}", size_of::<Instruction>());
+            debugln!(debug_log, "\tFunctionSignature: {}", size_of::<FunctionSignature>());
+        }
+
         let mut block = parse(debug_log.clone(), string)?;
         let builtins = stdlib::get_builtins();
         let mut analysis = Analysis::default();
@@ -101,7 +120,7 @@ mod lib {
             debugln!(debug_log, "assign id: builtin {ident} -> {id}");
             initial_scope.insert(ident, id);
             functions.insert(id, func);
-            analysis.types.insert(id, Type::Function(sig));
+            analysis.types.insert(id, Type::Function(Box::new(sig)));
         }
 
         let analysis = analysis::execute(
@@ -123,7 +142,7 @@ mod lib {
             for (i, func) in &generator.functions {
                 debugln!(debug_log, "function {i}:");
                 for i in 0..func.len() {
-                    debugln!(debug_log, "    {i}: {:?}", func[i]);
+                    debugln!(debug_log, "\t{i}: {:?}", func[i]);
                 }
             }
         }

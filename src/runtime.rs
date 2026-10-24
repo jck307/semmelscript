@@ -225,34 +225,34 @@ impl Runtime {
                     self.stack.stack[len-count..len].rotate_right(1);
                 }
                 PushNumber8(ty, u_8) => {
-                    match ty {
-                        Type::U8 => self.stack.push(Value { U8: *u_8 }),
-                        Type::I8 => self.stack.push(Value { I8: u8::cast_signed(*u_8) }),
+                    self.stack.push(match ty {
+                        Type::U8 => Value { U8: *u_8 },
+                        Type::I8 => Value { I8: u8::cast_signed(*u_8) },
                         _ => panic!()
-                    }
+                    })
                 }
                 PushNumber16(ty, u_16) => {
-                    match ty {
-                        Type::U16 => self.stack.push(Value { U16: *u_16 }),
-                        Type::I16 => self.stack.push(Value { I16: u16::cast_signed(*u_16) }),
+                    self.stack.push(match ty {
+                        Type::U16 => Value { U16: *u_16 },
+                        Type::I16 => Value { I16: u16::cast_signed(*u_16) },
                         _ => panic!()
-                    }
+                    })
                 }
                 PushNumber32(ty, u_32) => {
-                    match ty {
-                        Type::U32 => self.stack.push(Value { U32: *u_32 }),
-                        Type::I32 => self.stack.push(Value { I32: u32::cast_signed(*u_32) }),
-                        Type::F32 => self.stack.push(Value { F32: f32::from_bits(*u_32) }),
+                    self.stack.push(match ty {
+                        Type::U32 => Value { U32: *u_32 },
+                        Type::I32 => Value { I32: u32::cast_signed(*u_32) },
+                        Type::F32 => Value { F32: f32::from_bits(*u_32) },
                         _ => panic!()
-                    }
+                    })
                 }
                 PushNumber64(ty, u_64) => {
-                    match ty {
-                        Type::U64 => self.stack.push(Value { U64: *u_64 }),
-                        Type::I64 => self.stack.push(Value { I64: u64::cast_signed(*u_64) }),
-                        Type::F64 => self.stack.push(Value { F64: f64::from_bits(*u_64) }),
+                    self.stack.push(match ty {
+                        Type::U64 => Value { U64: *u_64 },
+                        Type::I64 => Value { I64: u64::cast_signed(*u_64) },
+                        Type::F64 => Value { F64: f64::from_bits(*u_64) },
                         _ => panic!()
-                    }
+                    })
                 }
                 PushBool(boolean) => {
                     self.stack.push(Value { Bool: *boolean });
@@ -270,9 +270,9 @@ impl Runtime {
                         }
                     }
                 }
-                LoopUpdate(max, step, jump_index) => {
+                LoopUpdate(max, jump_index) => {
                     unsafe {
-                        self.stack.peek_mut().U64 += step;
+                        self.stack.peek_mut().U64 += 1;
                         if self.stack.peek().U64 != *max {
                             i = *jump_index;
                         } else {
@@ -311,7 +311,7 @@ impl Runtime {
 fn debug_hexdump(runtime: &mut Runtime) {
     debugln!(runtime.debug_log, "current stack:");
     for (i, value) in runtime.stack.stack[..runtime.stack.next_stack_id].iter().enumerate() {
-        debug!(runtime.debug_log, "    {i:<2} ");
+        debug!(runtime.debug_log, "\t{i:<2} ");
         for i in 0..std::mem::size_of::<Value>() {
             unsafe {
                 debug!(runtime.debug_log,

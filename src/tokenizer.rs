@@ -80,11 +80,7 @@ impl Tokenizer {
             }
         }
         let num: Integer = digits.parse()?;
-        let num = if negative {
-            -num
-        } else {
-            num
-        };
+        let num = if negative { -num } else { num };
         Ok(Token::Integer(num))
     }
 
@@ -107,10 +103,12 @@ impl Tokenizer {
         if let Some(kw) = Keyword::try_from_str(&word) {
             match kw {
                 Keyword::KwAnd => Ok(Token::Operator(Operator::And)),
-                Keyword::KwOr => Ok(Token::Operator(Operator::Or)),
+                Keyword::KwOr  => Ok(Token::Operator(Operator::Or)),
                 Keyword::KwNot => Ok(Token::Operator(Operator::Not)),
                 _ => Ok(Token::Keyword(kw.clone()))
             }
+        } else if let Some(ty) = Primitive::try_from_str(&word) {
+            Ok(Token::Primitive(ty))
         } else if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {
             Err("invalid identifier".into())
         } else {

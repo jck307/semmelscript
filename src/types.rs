@@ -20,7 +20,7 @@ macro_rules! define_types {
         pub enum Type {
             $( $value, )*
             Unknown,
-            Function(FunctionSignature),
+            Function(Box<FunctionSignature>),
         }
 
         #[allow(non_snake_case)]

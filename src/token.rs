@@ -62,8 +62,9 @@ pub enum Token {
     Boolean(bool),
     Identifier(String),
     Keyword(Keyword),
-    Operator(Operator),
+    Primitive(Primitive),
     Separator(Separator),
+    Operator(Operator),
     // Underscore,
 }
 
@@ -83,6 +84,14 @@ define_enums! {
         KwAnd = "and",
         KwOr = "or",
         KwNot = "not",
+    }
+
+    Primitive {
+        Int = "int",
+        Uint = "uint",
+        Float = "float",
+        Bool = "bool",
+        String = "str",
     }
 
     Separator {
