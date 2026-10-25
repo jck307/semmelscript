@@ -176,24 +176,23 @@ mod step2 {
 
                             if a_ty == b_ty {
                                 let ty = a_ty;
-                                if (
-                                        // if the type is boolean,
-                                        // expect the operator to also be boolean
-                                        *ty == Type::Bool &&
-                                        !BOOLEAN_OPERATORS.contains(&bin_op.op)
-                                    ) || (
-                                        // if the type is numeric,
-                                        // expect the operator to be either
-                                        // comparing or arithmetic
-                                        NUMERIC_TYPES.contains(ty) && !(
-                                        COMPARISON_OPERATORS.contains(&bin_op.op) ||
-                                        ARITHMETIC_OPERATORS.contains(&bin_op.op))
-                                    ) || (
-                                        // expect the type to be either
-                                        // boolean or numeric
-                                        *ty != Type::Bool &&
-                                        !NUMERIC_TYPES.contains(ty)
-                                    ) {
+
+                                // expect the type to be either
+                                // boolean or numeric;
+                                // if the type is boolean,
+                                // expect the operator to also be boolean;
+                                // if the type is numeric,
+                                // expect the operator to be either
+                                // comparing or arithmetic.
+                                if
+                                    *ty != Type::Bool &&
+                                    !NUMERIC_TYPES.contains(ty) ||
+                                    *ty == Type::Bool &&
+                                    !BOOLEAN_OPERATORS.contains(&bin_op.op) ||
+                                    NUMERIC_TYPES.contains(ty) &&
+                                    !COMPARISON_OPERATORS.contains(&bin_op.op) &&
+                                    !ARITHMETIC_OPERATORS.contains(&bin_op.op)
+                                {
                                     return Err(format!(
                                         "invalid type {:?} for operator {:?}",
                                         ty,
