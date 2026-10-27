@@ -16,7 +16,7 @@ pub enum Node {
 
     // Statements
     DefineVariable(Identifier, Box<Node>, NodeMeta),
-    DefineFunction(Identifier, Vec<Identifier>, Box<Node>, NodeMeta),
+    DefineFunction(Identifier, Vec<Identifier>, Type, Box<Node>, NodeMeta),
     If(Vec<(Box<Node>, Box<Node>)>, Option<Box<Node>>, NodeMeta),
     For(Identifier, Box<Node>, Box<Node>, NodeMeta),
     While(Box<Node>, Box<Node>, NodeMeta),
@@ -34,6 +34,7 @@ pub enum Node {
 
 #[derive(Debug, Clone)]
 pub struct NodeMeta {
+    #[allow(dead_code)]
     pub location: Option<(u16, u16)>,
     pub ty: Type,
 }

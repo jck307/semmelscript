@@ -61,3 +61,14 @@ pub static NUMERIC_TYPES: &[Type] = &[
     Type::F32,
     Type::F64,
 ];
+
+pub static INTEGER_TYPES: &[Type] = &[
+    Type::U8,
+    Type::U16,
+    Type::U32,
+    Type::U64,
+    Type::I8,
+    Type::I16,
+    Type::I32,
+    Type::I64,
+];

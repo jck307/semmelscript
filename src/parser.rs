@@ -23,9 +23,12 @@ impl Parser {
     }
 
     fn get_meta(&self) -> NodeMeta {
-        let TokenMeta { row, col } = self.metas[self.tokens.i];
+        let TokenMeta { row, col } =
+            self.metas.get(self.tokens.i)
+            .unwrap_or_else(|| &TokenMeta { row: 0, col: 0 });
+
         NodeMeta {
-            location: Some((row, col)),
+            location: Some((*row, *col)),
             ty: Type::Unknown,
         }
     }
@@ -270,10 +273,24 @@ impl Parser {
                 return Err("expected identifier".into())
             }
         }
+        let return_type = if let Token::Primitive(prim) = self.tokens.peek()? {
+            let res = match prim {
+                Primitive::Int => Type::I64,
+                Primitive::Uint => Type::U64,
+                Primitive::Float => Type::F64,
+                Primitive::Bool => Type::Bool,
+                Primitive::String => Type::String,
+            };
+            self.tokens.step();
+            res
+        } else {
+            Type::Null
+        };
         let block = self.read_block(true)?;
         Ok(Node::DefineFunction(
             ident.to_string().into(),
             args,
+            return_type,
             Box::new(block),
             meta,
         ))

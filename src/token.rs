@@ -143,6 +143,55 @@ define_enums! {
     }
 }
 
+#[derive(PartialEq, Debug)]
+pub enum OperatorType {
+    Equality,
+    Boolean,
+    Comparison,
+    Arithmetic,
+    Assignment,
+    Range,
+}
+
+impl Operator {
+    pub fn ty(&self) -> OperatorType {
+        use Operator::*;
+        use OperatorType::*;
+        match self {
+            Add |
+            Sub |
+            Mul |
+            Div |
+            Pow |
+            Mod
+                => Arithmetic,
+            Equal |
+            Inequal
+                => Equality,
+            Less |
+            LessEqual |
+            Greater |
+            GreaterEqual
+                => Comparison,
+            And |
+            Or |
+            Not
+                => Boolean,
+            RangeExcl |
+            RangeIncl
+                => Range,
+            Assign |
+            AddAssign |
+            SubAssign |
+            MulAssign |
+            DivAssign |
+            PowAssign |
+            ModAssign
+                => Assignment,
+        }
+    }
+}
+
 use Operator::*;
 
 pub static OPERATOR_ORDER: &[&[Operator]] = &[
@@ -184,29 +233,4 @@ pub static BINARY_OPERATORS: &[Operator] = &[
 
 pub static UNARY_OPERATORS: &[Operator] = &[
     Not,
-];
-
-pub static BOOLEAN_OPERATORS: &[Operator] = &[
-    Equal,
-    Inequal,
-    And,
-    Or,
-];
-
-pub static COMPARISON_OPERATORS: &[Operator] = &[
-    Equal,
-    Inequal,
-    Less,
-    LessEqual,
-    Greater,
-    GreaterEqual,
-];
-
-pub static ARITHMETIC_OPERATORS: &[Operator] = &[
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Pow,
-    Mod,
 ];

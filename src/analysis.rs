@@ -46,7 +46,7 @@ mod step1 {
 
     #[derive(Default, Debug)]
     struct State {
-        scope: Vec<(usize, Vec<HashMap<Box<str>, usize>>)>,
+        scope: Vec<(usize, HashMap<Box<str>, usize>)>,
         scope_added: bool,
     }
 
@@ -58,7 +58,7 @@ mod step1 {
             analysis: Rc<RefCell<Analysis>>) -> Result<()> {
 
         let mut state = State::default();
-        state.scope.push((0, vec![initial_scope]));
+        state.scope.push((0, initial_scope));
         let state = Rc::new(RefCell::new(state));
 
         block.traverse(
@@ -66,83 +66,87 @@ mod step1 {
                 let mut state = (*state).borrow_mut();
                 let mut analysis = (*analysis).borrow_mut();
 
-                let last_func = state.scope.len()-1;
+                let last = state.scope.len()-1;
 
                 if let Node::Block(..) = node {
                     match (&mode, state.scope_added) {
                         (Start, false) => {
-                            state.scope[last_func].1.push(HashMap::new());
+                            let local_id = state.scope[last].0;
+                            state.scope.push((local_id, HashMap::new()));
                         }
                         (Start, true) => {
                             state.scope_added = false;
                         }
                         (End, _) => {
-                            state.scope[last_func].1.pop();
+                            state.scope.pop();
                         }
                     }
                 }
 
-                if let Node::DefineFunction(..) = node && let End = mode {
-                    state.scope.pop();
-                }
+                // if let Node::DefineFunction(..) = node && let End = mode {
+                //     state.scope.pop();
+                // }
 
-                if let Start = mode {
-                    match node {
-                        Node::DefineVariable(ident, ..) |
-                        Node::DefineFunction(ident, ..) |
-                        Node::For(ident, ..) => {
-                            let last_block = state.scope[last_func].1.len()-1;
-                            let id = analysis.next_id();
-                            {
-                                let ident = ident.as_string().clone();
-                                debugln!(debug_log, "assign id: {} -> {}", ident, id);
-                                state.scope[last_func].1[last_block].insert(ident, id);
-                            }
-                            *ident = Identifier::Id(id);
+                let last = state.scope.len()-1;
 
-                            match node {
-                                Node::DefineFunction(_, args, block, _) => {
-                                    let mut args_scope = HashMap::new();
-                                    let mut sig = FunctionSignature::default();
-                                    for (i, ident) in args.iter().enumerate() {
-                                        let ident = ident.as_string().clone();
-                                        let id = analysis.next_id();
-                                        args_scope.insert(ident, id);
-                                        sig.0.push(Type::Unknown);
-                                        analysis.local_ids.insert(id, i);
-                                        analysis.types.insert(id, Type::Unknown);
-                                    }
-                                    let Node::Block(block, _) = &**block
-                                        else { panic!() };
-                                    if block.return_last {
-                                        sig.1.push(Type::Unknown);
-                                    }
-                                    state.scope.push((args.len(), vec![args_scope]));
-                                    state.scope_added = true;
-                                    analysis.types.insert(
-                                        id,
-                                        Type::Function(Box::new(sig))
-                                    );
-                                }
-                                _ => {
-                                    let local_id = state.scope[last_func].0;
-                                    state.scope[last_func].0 += 1;
-                                    analysis.local_ids.insert(id, local_id);
+                match (mode, &mut *node) {
+                    (End, Node::DefineVariable(ident, ..)) |
+                    (Start, Node::DefineFunction(ident, ..)) |
+                    (Start, Node::For(ident, ..)) => {
+                        let id = analysis.next_id();
+                        {
+                            let ident = ident.as_string().clone();
+                            debugln!(debug_log, "assign id: {} -> {}", ident, id);
+                            state.scope[last].1.insert(ident, id);
+                        }
+                        *ident = Identifier::Id(id);
+
+                        match node {
+                            Node::DefineFunction(_, args, return_type, block, _) => {
+                                let mut args_scope = HashMap::new();
+                                let mut sig = FunctionSignature::default();
+                                for (i, ident) in args.iter().enumerate() {
+                                    let ident = ident.as_string().clone();
+                                    let id = analysis.next_id();
+                                    args_scope.insert(ident, id);
+                                    sig.0.push(Type::Unknown);
+                                    analysis.local_ids.insert(id, i);
                                     analysis.types.insert(id, Type::Unknown);
                                 }
-                            }
-                        }
-                        Node::Identifier(ident, _) => {
-                            for idents in state.scope[last_func].1.iter() {
-                                if let Some(id) = idents.get(ident.as_string()) {
-                                    *ident = Identifier::Id(*id);
-                                    return Ok(())
+                                let Node::Block(block, _) = &**block
+                                    else { panic!() };
+                                if *return_type != Type::Null {
+                                    if !block.return_last {
+                                        return Err("expected return value".into())
+                                    } else {
+                                        sig.1.push(return_type.clone());
+                                    }
                                 }
+                                state.scope.push((args.len(), args_scope));
+                                state.scope_added = true;
+                                analysis.types.insert(
+                                    id,
+                                    Type::Function(Box::new(sig))
+                                );
                             }
-                            panic!("name error: {}", ident.as_string());
+                            _ => {
+                                let local_id = state.scope[last].0;
+                                state.scope[last].0 += 1;
+                                analysis.local_ids.insert(id, local_id);
+                                analysis.types.insert(id, Type::Unknown);
+                            }
                         }
-                        _ => {}
                     }
+                    (Start, Node::Identifier(ident, _)) => {
+                        for (_, idents) in state.scope.iter() {
+                            if let Some(id) = idents.get(ident.as_string()) {
+                                *ident = Identifier::Id(*id);
+                                return Ok(())
+                            }
+                        }
+                        panic!("name error: {}", ident.as_string());
+                    }
+                    _ => {}
                 }
 
                 Ok(())
@@ -156,6 +160,13 @@ mod step1 {
 mod step2 {
     use super::*;
 
+    enum TypeSet {
+        Boolean,
+        Integer,
+        Float,
+        Other,
+    }
+
     pub fn execute(
             #[allow(unused_variables)]
             debug_log: DebugLog,
@@ -164,48 +175,61 @@ mod step2 {
 
         block.traverse(
             &move |node: &mut Node, mode| {
-                use crate::token::*;
-                use crate::types::NUMERIC_TYPES;
+                use crate::types::{NUMERIC_TYPES, INTEGER_TYPES};
+                use crate::token::OperatorType::*;
+
                 let mut analysis = (*analysis).borrow_mut();
 
                 if let End = mode {
                     match node {
                         Node::BinaryOp(bin_op, meta) => {
+                            let op_ty = bin_op.op.ty();
                             let a_ty = &bin_op.a.meta().ty;
                             let b_ty = &bin_op.b.meta().ty;
 
-                            if a_ty == b_ty {
-                                let ty = a_ty;
-
-                                // expect the type to be either
-                                // boolean or numeric;
-                                // if the type is boolean,
-                                // expect the operator to also be boolean;
-                                // if the type is numeric,
-                                // expect the operator to be either
-                                // comparing or arithmetic.
-                                if
-                                    *ty != Type::Bool &&
-                                    !NUMERIC_TYPES.contains(ty) ||
-                                    *ty == Type::Bool &&
-                                    !BOOLEAN_OPERATORS.contains(&bin_op.op) ||
-                                    NUMERIC_TYPES.contains(ty) &&
-                                    !COMPARISON_OPERATORS.contains(&bin_op.op) &&
-                                    !ARITHMETIC_OPERATORS.contains(&bin_op.op)
-                                {
-                                    return Err(format!(
-                                        "invalid type {:?} for operator {:?}",
-                                        ty,
-                                        bin_op.op
+                            if op_ty == Assignment {
+                                return if let Node::Identifier(..) = bin_op.a {
+                                    Ok(())
+                                } else {
+                                    Err(format!(
+                                        "cannot assign to {:?}",
+                                        bin_op.a
                                     ).into())
                                 }
 
-                                meta.ty = if 
-                                        BOOLEAN_OPERATORS.contains(&bin_op.op) ||
-                                        COMPARISON_OPERATORS.contains(&bin_op.op) {
-                                    Type::Bool
-                                } else {
-                                    ty.clone()
+                            } else if a_ty == b_ty {
+                                let ty = a_ty;
+
+                                let ty_set =
+                                    if *ty == Type::Bool {
+                                        TypeSet::Boolean
+                                    } else if INTEGER_TYPES.contains(ty) {
+                                        TypeSet::Integer
+                                    } else if NUMERIC_TYPES.contains(ty) {
+                                        TypeSet::Float
+                                    } else {
+                                        TypeSet::Other
+                                    };
+
+                                meta.ty = match (op_ty, ty_set) {
+                                    (Arithmetic, TypeSet::Integer) |
+                                    (Arithmetic, TypeSet::Float)
+                                        => ty.clone(),
+                                    (Equality, _) |
+                                    (Comparison, TypeSet::Integer) |
+                                    (Comparison, TypeSet::Float) |
+                                    (Boolean, TypeSet::Boolean)
+                                        => Type::Bool,
+                                    (Range, TypeSet::Integer)
+                                        // TODO fix
+                                        => Type::Unknown,
+                                    _ => {
+                                        return Err(format!(
+                                            "invalid type {:?} for operator {:?}",
+                                            ty,
+                                            bin_op.op
+                                        ).into())
+                                    }
                                 };
 
                             } else {
@@ -229,6 +253,35 @@ mod step2 {
                         Node::Identifier(ident, meta) => {
                             let id = ident.as_id();
                             meta.ty = analysis.types[id].clone();
+                        }
+                        Node::Block(block, meta) => {
+                            if !block.return_last {
+                                meta.ty = Type::Null;
+                            } else {
+                                if block.nodes.len() == 0 {
+                                    meta.ty = Type::Null;
+                                } else {
+                                    meta.ty = block.nodes[block.nodes.len()-1]
+                                        .meta().ty.clone();
+                                }
+                            }
+                        }
+                        Node::ParenArgs(node, _, meta) => {
+                            if let Node::Identifier(id, _) = &**node {
+                                let id = id.as_id();
+                                let ty = &analysis.types[id];
+                                if let Type::Function(sig) = ty {
+                                    meta.ty = if sig.1.len() != 0 {
+                                        sig.1[0].clone()
+                                    } else {
+                                        Type::Null
+                                    }
+                                } else {
+                                    return Err("expected function".into())
+                                }
+                            } else {
+                                return Err("expected identifier".into())
+                            }
                         }
                         _ => {}
                     }

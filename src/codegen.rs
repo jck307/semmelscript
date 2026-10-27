@@ -17,10 +17,17 @@ macro_rules! block {
     ($codegen:ident, $block:expr, {$($tt:tt)*}) => {{
         let start_stack_index = $codegen.stack_index;
         let result = { $($tt)* };
+        let popcount = $codegen.stack_index - start_stack_index;
+        if $block.return_last {
+            $codegen.push(Instruction::RotateRight(popcount));
+        }
         $codegen.pop(
-            $codegen.stack_index - start_stack_index
-            - if $block.return_last { 1 } else { 0 }
+            if $block.return_last { popcount - 1 } else { popcount }
         );
+        // let popcount = 
+        //     if block.return_last { codegen.stack_index.saturating_sub(1) }
+        //     else { codegen.stack_index };
+        // codegen.pop(popcount);
         result
     }}
 }
@@ -250,7 +257,7 @@ impl Generate for Node {
                 }}
                 todo!("can only iterate over constant ranges, not {iterable:?}")
             }
-            DefineFunction(id, _, block, _) => {
+            DefineFunction(id, _, _, block, _) => {
                 let id = id.as_id();
                 let Type::Function(sig) = codegen.analysis.types[id].clone()
                     else { panic!() };
@@ -260,13 +267,6 @@ impl Generate for Node {
                 codegen.stack_index = sig.num_args();
                 {
                     block.generate(codegen)?;
-                    if block.return_last {
-                        codegen.push(Instruction::RotateRight(sig.num_args() + 1));
-                    }
-                    let popcount = 
-                        if block.return_last { codegen.stack_index.saturating_sub(1) }
-                        else { codegen.stack_index };
-                    codegen.pop(popcount);
                 }
                 codegen.exit_function(old_id);
                 codegen.stack_index = start_stack_index;

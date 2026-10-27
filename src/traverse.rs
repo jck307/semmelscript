@@ -35,7 +35,7 @@ impl Node {
                 un_op.value.traverse(func)?;
             }
             DefineVariable(_, value, _) => value.traverse(func)?,
-            DefineFunction(_, _, block, _) => block.traverse(func)?,
+            DefineFunction(_, _, _, block, _) => block.traverse(func)?,
             If(statements, end, _) => {
                 for (condition, block) in statements {
                     condition.traverse(func)?;
