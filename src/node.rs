@@ -16,7 +16,7 @@ pub enum Node {
 
     // Statements
     DefineVariable(Identifier, Box<Node>, NodeMeta),
-    DefineFunction(Identifier, Vec<Identifier>, Type, Box<Node>, NodeMeta),
+    DefineFunction(Identifier, Vec<(Identifier, Type)>, Vec<Type>, Box<Node>, NodeMeta),
     If(Vec<(Box<Node>, Box<Node>)>, Option<Box<Node>>, NodeMeta),
     For(Identifier, Box<Node>, Box<Node>, NodeMeta),
     While(Box<Node>, Box<Node>, NodeMeta),

@@ -104,9 +104,11 @@ impl CodeGenerator {
     fn push(&mut self, instr: Instruction) -> Location {
         self.stack_index =
             (self.stack_index as isize + instr.get_stack_diff()) as usize;
-        if self.current_function_id == 0 {
-            debugln!(self.debug_log, "{instr:?}, index: {}", self.stack_index);
-        }
+        debugln!(self.debug_log,
+            "{}: {instr:?}, index: {}",
+            self.current_function_id,
+            self.stack_index,
+        );
         self.current_function_mut().push(instr);
         (self.current_function_id, self.instruction_index() - 1)
     }
@@ -264,10 +266,11 @@ impl Generate for Node {
                 let Node::Block(block, _) = &**block else { panic!() };
                 let start_stack_index = codegen.stack_index;
                 let old_id = codegen.new_function(*id);
-                codegen.stack_index = sig.num_args();
-                {
+                codegen.stack_index = 0;
+                block!(codegen, block, {
+                    codegen.stack_index = sig.num_args();
                     block.generate(codegen)?;
-                }
+                });
                 codegen.exit_function(old_id);
                 codegen.stack_index = start_stack_index;
             }

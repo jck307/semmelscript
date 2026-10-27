@@ -105,21 +105,22 @@ mod step1 {
                             Node::DefineFunction(_, args, return_type, block, _) => {
                                 let mut args_scope = HashMap::new();
                                 let mut sig = FunctionSignature::default();
-                                for (i, ident) in args.iter().enumerate() {
+                                for (i, (ident, ty)) in args.iter().enumerate() {
                                     let ident = ident.as_string().clone();
                                     let id = analysis.next_id();
+                                    debugln!(debug_log, "assign id: {} -> {}", ident, id);
                                     args_scope.insert(ident, id);
-                                    sig.0.push(Type::Unknown);
+                                    sig.0.push(ty.clone());
                                     analysis.local_ids.insert(id, i);
-                                    analysis.types.insert(id, Type::Unknown);
+                                    analysis.types.insert(id, ty.clone());
                                 }
                                 let Node::Block(block, _) = &**block
                                     else { panic!() };
-                                if *return_type != Type::Null {
+                                if return_type.len() != 0 {
                                     if !block.return_last {
                                         return Err("expected return value".into())
                                     } else {
-                                        sig.1.push(return_type.clone());
+                                        sig.1 = return_type.clone();
                                     }
                                 }
                                 state.scope.push((args.len(), args_scope));
@@ -275,7 +276,7 @@ mod step2 {
                                         sig.1[0].clone()
                                     } else {
                                         Type::Null
-                                    }
+                                    };
                                 } else {
                                     return Err("expected function".into())
                                 }

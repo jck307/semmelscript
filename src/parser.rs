@@ -262,29 +262,50 @@ impl Parser {
         Ok(Node::Goto(ident.into(), meta))
     }
 
-    fn read_func(&mut self, meta: NodeMeta) -> Result<Node> {
-        let ident = self.read_ident_as_string()?;
-        self.tokens.expect(&ParenOpen)?;
-        let mut args = Vec::new();
-        for arg in self.read_args(Separator::ParenClose)? {
-            if let Node::Identifier(ident, _) = arg {
-                args.push(ident);
-            } else {
-                return Err("expected identifier".into())
-            }
-        }
-        let return_type = if let Token::Primitive(prim) = self.tokens.peek()? {
-            let res = match prim {
+    fn read_type(&mut self) -> Result<Type> {
+        if let Token::Primitive(prim) = self.tokens.next()? {
+            Ok(match prim {
                 Primitive::Int => Type::I64,
                 Primitive::Uint => Type::U64,
                 Primitive::Float => Type::F64,
                 Primitive::Bool => Type::Bool,
                 Primitive::String => Type::String,
-            };
-            self.tokens.step();
-            res
+            })
         } else {
-            Type::Null
+            Err("expected type".into())
+        }
+    }
+
+    fn read_func(&mut self, meta: NodeMeta) -> Result<Node> {
+        let ident = self.read_ident_as_string()?;
+        self.tokens.expect(&ParenOpen)?;
+        let mut args = Vec::new();
+        loop {
+            let tok = self.tokens.next()?.clone();
+            if let Token::Identifier(ref ident) = tok {
+                self.tokens.expect(&Colon)?;
+                let ident = Identifier::String(ident.clone().into());
+                let ty = self.read_type()?;
+                args.push((ident, ty));
+                let tok = self.tokens.next()?;
+                match tok {
+                    &Comma => {
+                        continue
+                    }
+                    &ParenClose => {
+                        break
+                    }
+                    _ => {}
+                }
+            } else if tok == ParenClose {
+                break
+            }
+            return Err(format!("unexpected token: {tok:?}").into())
+        }
+        let return_type = if let Token::Primitive(_) = self.tokens.peek()? {
+            vec![self.read_type()?]
+        } else {
+            vec![]
         };
         let block = self.read_block(true)?;
         Ok(Node::DefineFunction(
