@@ -83,3 +83,9 @@ impl ErrDisplay for token::Separator {
         format!("`{self}`")
     }
 }
+
+impl ErrDisplay for token::Operator {
+    fn errfmt(&self) -> String {
+        format!("`{self}`")
+    }
+}

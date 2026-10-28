@@ -39,8 +39,12 @@ impl Parser {
         let meta = self.get_meta();
 
         let un_op = if let Token::Operator(op) = self.tokens.peek()?.clone() {
-            self.tokens.step();
-            Some(op)
+            if UNARY_OPERATORS.contains(&op) {
+                self.tokens.step();
+                Some(op)
+            } else {
+                return Err(Unexpected(Box::new(op)).into())
+            }
         } else {
             None
         };
@@ -48,6 +52,7 @@ impl Parser {
         let mut value = {
             let mut meta = meta.clone();
             let token = self.tokens.next()?;
+
             meta.ty = match token {
                 Token::String(_) => Type::String,
                 Token::Integer(_) => Type::I64,
@@ -55,6 +60,7 @@ impl Parser {
                 Token::Boolean(_) => Type::Bool,
                 _ => meta.ty
             };
+
             match token {
                 Token::String(string) => Node::String(string.clone().into(), meta),
                 Token::Integer(int) => Node::Integer(*int, meta),
@@ -394,7 +400,11 @@ impl Parser {
                     }
                 }
                 Err(_) => {
-                    break
+                    if inner {
+                        return Err(EOF.into())
+                    } else {
+                        break
+                    }
                 }
             }
         }
