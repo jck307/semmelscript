@@ -33,8 +33,8 @@ macro_rules! add {
 pub fn get_builtins() -> Builtins {
     let mut builtins = HashMap::new();
     add!(builtins, [
-        println(Unknown),
-        tostring(Unknown) -> Unknown,
+        println(String),
+        tostring(Any) -> String,
     ]);
     builtins
 }

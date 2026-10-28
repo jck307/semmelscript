@@ -20,6 +20,7 @@ macro_rules! define_types {
         pub enum Type {
             $( $value, )*
             Unknown,
+            Any,
             Function(Box<FunctionSignature>),
         }
 

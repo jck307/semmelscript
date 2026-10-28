@@ -267,22 +267,39 @@ mod step2 {
                                 }
                             }
                         }
-                        Node::ParenArgs(node, _, meta) => {
-                            if let Node::Identifier(id, _) = &**node {
-                                let id = id.as_id();
-                                let ty = &analysis.types[id];
-                                if let Type::Function(sig) = ty {
-                                    meta.ty = if sig.1.len() != 0 {
-                                        sig.1[0].clone()
-                                    } else {
-                                        Type::Null
-                                    };
-                                } else {
-                                    return Err("expected function".into())
-                                }
-                            } else {
+                        Node::ParenArgs(node, args, meta) => {
+                            let Node::Identifier(id, _) = &**node else {
                                 return Err("expected identifier".into())
+                            };
+                            let id = id.as_id();
+                            let ty = &analysis.types[id];
+                            let Type::Function(sig) = ty else {
+                                return Err("expected function".into())
+                            };
+                            if sig.0.len() != args.len() {
+                                return Err(format!(
+                                    "expected {} arguments, got {}",
+                                    sig.0.len(),
+                                    args.len()
+                                ).into())
                             }
+                            for i in 0..(args.len()) {
+                                let exp_ty = &sig.0[i];
+                                let giv_ty = &args[i].meta().ty;
+                                if *exp_ty != Type::Any && exp_ty != giv_ty {
+                                    return Err(format!(
+                                        "expected type {:?} for argument {}, got {:?}",
+                                        exp_ty,
+                                        i + 1,
+                                        giv_ty
+                                    ).into())
+                                }
+                            }
+                            meta.ty = if sig.1.len() != 0 {
+                                sig.1[0].clone()
+                            } else {
+                                Type::Null
+                            };
                         }
                         _ => {}
                     }
