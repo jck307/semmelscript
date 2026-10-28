@@ -1,7 +1,7 @@
 let n = 1;
 
-func step(n, m) {
-    func double(n) {
+func step(n: int, m: int) int {
+    func double(n: int) int {
         n * 2
     }
 
