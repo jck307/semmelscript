@@ -4,6 +4,7 @@ use crate::{
     buffer::Buffer,
     token::*,
     syntax::*,
+    error::SyntaxError::*,
 };
 
 #[derive(PartialEq)]
@@ -15,8 +16,8 @@ enum Comment {
 
 pub struct Tokenizer {
     buffer: Buffer<char>,
-    row: u16,
-    col: u16,
+    pub row: u16,
+    pub col: u16,
     digit_chars: Box<[char]>,
     ident_chars: Box<[char]>,
     op_chars: Box<[char]>,
@@ -61,7 +62,7 @@ impl Tokenizer {
     }
 
     fn read_num(&mut self) -> Result<Token> {
-        let negative = self.buffer.peek()? == &'-';
+        let negative = *self.buffer.peek()? == '-';
         if negative {
             self.buffer.step();
         }
@@ -111,8 +112,8 @@ impl Tokenizer {
             }
         } else if let Some(ty) = Primitive::try_from_str(&word) {
             Ok(Token::Primitive(ty))
-        } else if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {
-            Err("invalid identifier".into())
+        // } else if !IDENTIFIER_OPENERS.contains(word.chars().nth(0).unwrap()) {
+        //     Err(InvalidIdentifier(word.into()).into())
         } else {
             Ok(Token::Identifier(word))
         }
@@ -145,7 +146,7 @@ impl Tokenizer {
                         Ok(token)
                     }
                     None => {
-                        Err(format!("invalid operator: {string}"))?
+                        Err(InvalidOperator(string.clone().into()).into())
                     }
                 }
             }
@@ -162,7 +163,7 @@ impl Tokenizer {
         } else if IDENTIFIER_OPENERS.contains(ch) {
             self.read_word()
         } else {
-            return Err(format!("unexpected character: {ch}").into())
+            return Err(UnexpectedCharacter(ch).into())
         }
     }
 

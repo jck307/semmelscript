@@ -1,11 +1,10 @@
 #![allow(unused)]
 
 use crate::*;
+use std::fmt;
 
 macro_rules! define_enums {
-    (
-        $($name:ident { $($field:ident $(= $str:expr)?,)* })*
-    ) => {
+    ($($name:ident { $($field:ident $(= $str:expr)?,)* })*) => {
         $(
             #[derive(Debug, Clone, PartialEq)]
             pub enum $name {
@@ -26,19 +25,26 @@ macro_rules! define_enums {
                     }
                 }
 
-                // pub fn as_str(&self) -> &'static str {
-                //     match self {
-                //         $(
-                //             Self::$field => $str,
-                //         )*
-                //     }
-                // }
-
                 pub const ARRAY: &[(Self, &'static str)] = &[$(
                     $(
                         (Self::$field, $str),
                     )?
                 )*];
+            }
+
+            impl fmt::Display for $name {
+                fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                    write!(f, "{}", match self {
+                        $(
+                            $(
+                                Self::$field => $str,
+                            )?
+                        )*
+                        other => {
+                            return fmt::Debug::fmt(other, f)
+                        }
+                    })
+                }
             }
         )*
 
@@ -66,6 +72,22 @@ pub enum Token {
     Separator(Separator),
     Operator(Operator),
     // Underscore,
+}
+
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Token::String(value) => fmt::Display::fmt(value, f),
+            Token::Integer(value) => fmt::Display::fmt(value, f),
+            Token::Float(value) => fmt::Display::fmt(value, f),
+            Token::Boolean(value) => fmt::Display::fmt(value, f),
+            Token::Identifier(value) => fmt::Display::fmt(value, f),
+            Token::Keyword(value) => fmt::Display::fmt(value, f),
+            Token::Primitive(value) => fmt::Display::fmt(value, f),
+            Token::Separator(value) => fmt::Display::fmt(value, f),
+            Token::Operator(value) => fmt::Display::fmt(value, f),
+        }
+    }
 }
 
 define_enums! {

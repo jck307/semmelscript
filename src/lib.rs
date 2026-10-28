@@ -12,12 +12,16 @@ mod traverse;
 mod analysis;
 mod codegen;
 mod debug;
+mod error;
 
 pub use lib::*;
 
 mod lib {
     use {
-        std::collections::HashMap,
+        std::{
+            collections::HashMap,
+            rc::Rc,
+        },
         super::{
             *,
             buffer::Buffer,
@@ -32,8 +36,7 @@ mod lib {
         },
     };
 
-    pub type Result<T> = std::result::Result<T,
-        Box<dyn std::error::Error + Send + Sync + 'static>>;
+    pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
     pub type Integer = i64;
     pub type Float = f64;
 
@@ -43,7 +46,17 @@ mod lib {
             string: String) -> Result<Node> {
         let buffer = Buffer::new(string.chars().collect());
         let mut tokenizer = Tokenizer::new(buffer);
-        let (tokens, metas) = tokenizer.tokenize()?;
+
+        let (tokens, metas) = match tokenizer.tokenize() {
+            Ok((tokens, metas)) => (tokens, metas),
+            Err(err) => {
+                return Err(format!(
+                    "syntax error at {}:{}: {err}",
+                    tokenizer.row+1,
+                    tokenizer.col+1
+                ).into())
+            }
+        };
 
         #[cfg(feature = "debug-logging")]
         {
@@ -54,27 +67,25 @@ mod lib {
             }
         }
 
+        let metas = Rc::new(metas);
+
         let tokens = Buffer::new(tokens.into());
-        let mut parser = Parser::new(tokens, metas);
+        let mut parser = Parser::new(tokens, metas.clone());
 
         let block = match parser.parse() {
             Ok(block) => block,
             Err(err) => {
-                // let meta = &metas.get(parser.tokens.i).unwrap_or_else(||
-                //     &metas[metas.len()-1]);
-                // return Err(format!("syntax error at {}:{}: {err}",
-                //     meta.row+1, meta.col+1).into())
-                return Err(err);
+                let meta = &metas.get(parser.tokens.i).unwrap_or_else(||
+                    &metas[metas.len()-1]);
+                return Err(format!(
+                    "syntax error at {}:{}: {err}",
+                    meta.row+1,
+                    meta.col+1
+                ).into())
             }
         };
 
         debugln!(debug_log, "nodes:\n{block:#?}");
-
-        // if debug {
-        //     for node in block.nodes.iter() {
-        //         println!("{node:#?},");
-        //     }
-        // }
 
         Ok(block)
     }

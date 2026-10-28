@@ -1,5 +1,6 @@
 #![allow(non_upper_case_globals)]
 
+use std::rc::Rc;
 use crate::{
     Result,
     buffer::Buffer,
@@ -7,15 +8,16 @@ use crate::{
     token::{*, consts::*},
     tokenizer::TokenMeta,
     types::Type,
+    error::SyntaxError::*,
 };
 
 pub struct Parser {
     pub tokens: Buffer<Token>,
-    metas: Vec<TokenMeta>,
+    metas: Rc<Vec<TokenMeta>>,
 }
 
 impl Parser {
-    pub fn new(tokens: Buffer<Token>, metas: Vec<TokenMeta>) -> Self {
+    pub fn new(tokens: Buffer<Token>, metas: Rc<Vec<TokenMeta>>) -> Self {
         Self {
             tokens,
             metas,
@@ -71,7 +73,11 @@ impl Parser {
                     self.tokens.back();
                     self.read_block(true)?
                 },
-                token => { return Err(format!("expected value (found {token:?})").into()) }
+                token => { 
+                    return Err(
+                        Expected(Box::new("value"), Box::new(token.clone())).into()
+                    )
+                }
             }
         };
 
@@ -128,7 +134,12 @@ impl Parser {
                 }
                 _ => {}
             }
-            return Err(format!("unexpected token: {next:?}").into())
+            return Err(
+                ExpectedN(
+                    vec![Box::new(Comma), Box::new(terminator)],
+                    Box::new(next.clone())
+                ).into()
+            )
         }
 
         Ok(args)
@@ -214,10 +225,9 @@ impl Parser {
     }
 
     fn read_ident_as_string(&mut self) -> Result<String> {
-        if let Token::Identifier(ident) = self.tokens.next()?.clone() {
-            Ok(ident)
-        } else {
-            Err("expected identifier".into())
+        match self.tokens.next()?.clone() {
+            Token::Identifier(ident) => Ok(ident),
+            tok => Err(Expected(Box::new("identifier"), Box::new(tok)).into())
         }
     }
 
@@ -263,16 +273,17 @@ impl Parser {
     }
 
     fn read_type(&mut self) -> Result<Type> {
-        if let Token::Primitive(prim) = self.tokens.next()? {
-            Ok(match prim {
-                Primitive::Int => Type::I64,
-                Primitive::Uint => Type::U64,
-                Primitive::Float => Type::F64,
-                Primitive::Bool => Type::Bool,
-                Primitive::String => Type::String,
-            })
-        } else {
-            Err("expected type".into())
+        match self.tokens.next()? {
+            Token::Primitive(prim) => Ok(
+                match prim {
+                    Primitive::Int => Type::I64,
+                    Primitive::Uint => Type::U64,
+                    Primitive::Float => Type::F64,
+                    Primitive::Bool => Type::Bool,
+                    Primitive::String => Type::String,
+                }
+            ),
+            tok => Err(Expected(Box::new("type"), Box::new(tok.clone())).into())
         }
     }
 
@@ -295,14 +306,16 @@ impl Parser {
                     &ParenClose => {
                         break
                     }
-                    _ => {}
+                    _ => {
+                        return Err(Unexpected(Box::new(tok.clone())).into())
+                    }
                 }
             } else if tok == ParenClose {
                 break
             }
-            return Err(format!("unexpected token: {tok:?}").into())
+            return Err(Unexpected(Box::new(tok)).into())
         }
-        let return_type = if let Token::Primitive(_) = self.tokens.peek()? {
+        let return_type = if *self.tokens.peek()? != BraceOpen {
             vec![self.read_type()?]
         } else {
             vec![]
@@ -333,7 +346,7 @@ impl Parser {
                         self.tokens.step();
                         break
                     } else {
-                        return Err("unexpected '}'".into())
+                        return Err(Unexpected(Box::new(BraceClose)).into())
                     }
                 }
                 Ok(BraceOpen) => {
@@ -351,7 +364,9 @@ impl Parser {
                         Let => self.read_let(meta)?,
                         Goto => self.read_goto(meta)?,
                         True | False | Elif | Else | In | KwAnd | KwOr | KwNot
-                            => { return Err("unexpected keyword".into()) }
+                        => {
+                            return Err(Unexpected(Box::new("keyword")).into())
+                        }
                     });
                 }
                 Ok(Colon) => {
@@ -370,8 +385,11 @@ impl Parser {
                         &BraceClose => {
                             return_last = true;
                         }
-                        token => { return Err(format!(
-                            "expected ';' or '}}' (found {token:?})").into())
+                        token => {
+                            return Err(ExpectedN(
+                                vec![Box::new(Semicolon), Box::new(BraceClose)],
+                                Box::new(token.clone())
+                            ).into())
                         }
                     }
                 }

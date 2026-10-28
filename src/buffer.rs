@@ -1,6 +1,12 @@
 use {
-    crate::Result,
-    std::fmt::Debug,
+    // std::fmt::{
+    //     Debug,
+    //     Display,
+    // },
+    crate::{
+        Result,
+        error::{ErrDisplay, SyntaxError::*},
+    },
 };
 
 pub struct Buffer<T> {
@@ -8,9 +14,7 @@ pub struct Buffer<T> {
     pub i: usize,
 }
 
-const EOF: &'static str = "unexpected end of file";
-
-impl<T: PartialEq + Clone + Debug> Buffer<T> {
+impl<T: PartialEq + Clone + ErrDisplay + 'static> Buffer<T> {
     pub fn new(buffer: Vec<T>) -> Self {
         Self {
             buffer: buffer.into(),
@@ -46,7 +50,7 @@ impl<T: PartialEq + Clone + Debug> Buffer<T> {
     pub fn expect(&mut self, value: &T) -> Result<()> {
         let next = self.next()?;
         if next != value {
-            Err(format!("expected {value:?} (found {next:?})").into())
+            Err(Expected(Box::new(value.clone()), Box::new(next.clone())).into())
         } else {
             Ok(())
         }
