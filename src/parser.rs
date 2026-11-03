@@ -355,9 +355,6 @@ impl Parser {
                         return Err(Unexpected(Box::new(BraceClose)).into())
                     }
                 }
-                Ok(BraceOpen) => {
-                    nodes.push(self.read_block(true)?);
-                }
                 Ok(Token::Keyword(kw)) => {
                     use Keyword::*;
                     let meta = self.get_meta();
