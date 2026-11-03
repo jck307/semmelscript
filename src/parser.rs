@@ -382,18 +382,21 @@ impl Parser {
                     self.tokens.expect(&Semicolon)?;
                 }
                 Ok(_) => {
-                    nodes.push(self.read_expression()?);
+                    let expr = self.read_expression()?;
+                    let is_block = matches!(expr, Node::Block(..));
+                    nodes.push(expr);
                     match self.tokens.peek()? {
                         &Semicolon => self.tokens.step(),
                         &BraceClose => {
                             return_last = true;
                         }
-                        token => {
+                        token if !is_block => {
                             return Err(ExpectedN(
                                 vec![Box::new(Semicolon), Box::new(BraceClose)],
                                 Box::new(token.clone())
                             ).into())
                         }
+                        _ => {}
                     }
                 }
                 Err(_) => {
