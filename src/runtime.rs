@@ -123,7 +123,11 @@ impl Stack {
     }
 
     pub fn push(&mut self, value: Value) {
-        self.stack[self.next_stack_id] = value;
+        if cfg!(debug_assertions) {
+            self.stack[self.next_stack_id] = value;
+        } else { unsafe {
+            *self.stack.get_unchecked_mut(self.next_stack_id) = value;
+        }}
         self.next_stack_id += 1;
     }
 
@@ -134,16 +138,28 @@ impl Stack {
 
     pub fn pop(&mut self) -> Value {
         self.next_stack_id -= 1;
-        self.stack[self.next_stack_id]
+        if cfg!(debug_assertions) {
+            self.stack[self.next_stack_id]
+        } else { unsafe {
+            *self.stack.get_unchecked(self.next_stack_id)
+        }}
     }
 
     pub fn peek(&self) -> &Value {
-        &self.stack[self.last_id()]
+        if cfg!(debug_assertions) {
+            &self.stack[self.last_id()]
+        } else { unsafe {
+            self.stack.get_unchecked(self.last_id())
+        }}
     }
 
     fn peek_mut(&mut self) -> &mut Value {
         let last_id = self.last_id();
-        &mut self.stack[last_id]
+        if cfg!(debug_assertions) {
+            &mut self.stack[last_id]
+        } else { unsafe {
+            self.stack.get_unchecked_mut(last_id)
+        }}
     }
 
     fn len(&self) -> usize {
@@ -160,11 +176,20 @@ impl Stack {
 
     fn dup(&mut self, rel: usize) {
         unsafe {
-            std::ptr::copy(
-                &self.stack[self.get_id(rel)],
-                &mut self.stack[self.next_stack_id],
-                1
-            );
+            if cfg!(debug_assertions) {
+                std::ptr::copy(
+                    &self.stack[self.get_id(rel)],
+                    &mut self.stack[self.next_stack_id],
+                    1
+                );
+            } else {
+                std::ptr::copy(
+                    &self.stack.get_unchecked(self.get_id(rel)),
+                    &mut self.stack.get_unchecked(self.next_stack_id),
+                    1
+                );
+            }
+
             self.next_stack_id += 1;
         }
     }
@@ -176,7 +201,14 @@ impl Stack {
     }
 
     fn move_to(&mut self, rel: usize) {
-        self.stack[self.get_id(rel)] = self.stack[self.last_id()];
+        if cfg!(debug_assertions) {
+            self.stack[self.get_id(rel)] = self.stack[self.last_id()];
+        } else { unsafe {
+            let rel_id = self.get_id(rel);
+            let last_id = self.last_id();
+            *self.stack.get_unchecked_mut(rel_id)
+                = *self.stack.get_unchecked_mut(last_id);
+        }}
         self.pop();
     }
 }
@@ -201,7 +233,11 @@ impl Runtime {
     pub fn call(&mut self, id: usize) {
         let mut i = 0;
         while i < self.functions[&id].len() {
-            let instruction = &self.functions[&id][i];
+            let instruction = if cfg!(debug_assertions) {
+                &self.functions[&id][i]
+            } else { unsafe {
+                self.functions[&id].get_unchecked(i)
+            }};
             debugln!(self.debug_log,
                 "exec instr {i}: {instruction:?}, stack len: {}", self.stack.len());
             i += 1;
